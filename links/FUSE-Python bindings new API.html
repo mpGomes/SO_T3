@@ -1,0 +1,498 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<title>FUSE-Python bindings new API</title>
+<meta name="author" content="Csaba Henk" />
+<style type="text/css">
+
+/*
+:Authors: Ian Bicking, Michael Foord
+:Contact: fuzzyman@voidspace.org.uk
+:Date: 2005/08/26 
+:Version: 0.1.0
+:Copyright: This stylesheet has been placed in the public domain.
+
+Stylesheet for Docutils.
+Based on ``blue_box.css`` by Ian Bicking
+and ``html4css1.css`` revision 1.46.
+*/
+
+@import url(html4css1.css);
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: lightblue;
+}
+
+em, i {
+  /* Typically serif fonts have much nicer italics */
+  font-family: Times New Roman, Times, serif;
+}
+
+a.target {
+  color: blue;
+}
+
+a.target {
+  color: blue;
+}
+
+a.toc-backref {
+  text-decoration: none;
+  color: black;
+}
+
+a.toc-backref:hover {
+  background-color: inherit;
+}
+
+a:hover {
+  background-color: #cccccc;
+}
+
+div.attention, div.caution, div.danger, div.error, div.hint,
+div.important, div.note, div.tip, div.warning {
+  background-color: #cccccc;
+  padding: 3px;
+  width: 80%;
+}
+
+div.admonition p.admonition-title, div.hint p.admonition-title,
+div.important p.admonition-title, div.note p.admonition-title,
+div.tip p.admonition-title  {
+  text-align: center;
+  background-color: #999999;
+  display: block;
+  margin: 0;
+}
+
+div.attention p.admonition-title, div.caution p.admonition-title,
+div.danger p.admonition-title, div.error p.admonition-title,
+div.warning p.admonition-title {
+  color: #cc0000;
+  font-family: sans-serif;
+  text-align: center;
+  background-color: #999999;
+  display: block;
+  margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: Helvetica, Arial, sans-serif;
+  border: thin solid black;
+  /* This makes the borders rounded on Mozilla, which pleases me */
+  -moz-border-radius: 8px;
+  padding: 4px;
+}
+
+h1 {
+  background-color: #444499;
+  color: #ffffff;
+  border: medium solid black;
+}
+
+h1 a.toc-backref, h2 a.toc-backref { 
+  color: #ffffff;
+}
+
+h2 {
+  background-color: #666666;
+  color: #ffffff;
+  border: medium solid black;
+}
+
+h3, h4, h5, h6 {
+  background-color: #cccccc;
+  color: #000000;
+}
+
+h3 a.toc-backref, h4 a.toc-backref, h5 a.toc-backref, 
+h6 a.toc-backref { 
+  color: #000000;
+}
+
+h1.title {
+  text-align: center;
+  background-color: pink;
+  color: #eeeeee;
+  border: thick solid black;
+  -moz-border-radius: 20px;
+}
+
+table.footnote {
+  padding-left: 0.5ex;
+}
+
+table.citation {
+  padding-left: 0.5ex
+}
+
+pre.literal-block, pre.doctest-block {
+  border: thin black solid;
+  padding: 5px;
+}
+
+.image img { border-style : solid;
+            border-width : 2px;
+}
+
+h1 tt, h2 tt, h3 tt, h4 tt, h5 tt, h6 tt {
+  font-size: 100%;
+}
+
+code, tt {
+  color: #000066;
+}
+
+
+</style>
+</head>
+<body>
+<div class="document" id="fuse-python-bindings-new-api">
+<h1 class="title"><a class="reference" href="http://fuse.sourceforge.net/wiki/index.php/FusePython">FUSE-Python</a> bindings new API</h1>
+<table class="docinfo" frame="void" rules="none">
+<col class="docinfo-name" />
+<col class="docinfo-content" />
+<tbody valign="top">
+<tr><th class="docinfo-name">Author:</th>
+<td>Csaba Henk</td></tr>
+</tbody>
+</table>
+<p>I've made several changes on the FUSE Python interface as we knew it.
+We will review here how this effects the usage of the module -- both
+from the end user and the developer POV.</p>
+<p><em>This is not a reference.</em> This document just wants to show the big
+picture.  If you want to write code using this module, then read this
+document first, and then take a look at the example filesystems under
+<tt class="docutils literal"><span class="pre">example/</span></tt> (<tt class="docutils literal"><span class="pre">example/xmp.py</span></tt> is a pretty complete demo of the usage
+of the FUSE binding). For the rest, you can get away with the usual
+resources like in-code documentation (ie., docstrings) and the code
+itself.</p>
+<div class="contents topic">
+<p class="topic-title first"><a id="contents" name="contents">Contents</a></p>
+<ul class="simple">
+<li><a class="reference" href="#old-api" id="id19" name="id19">Old API</a><ul>
+<li><a class="reference" href="#enforcing-compatibility" id="id20" name="id20">Enforcing compatibility</a></li>
+<li><a class="reference" href="#what-s-incompatible-anyway" id="id21" name="id21">What's incompatible, anyway?</a></li>
+</ul>
+</li>
+<li><a class="reference" href="#new-api" id="id22" name="id22">New API</a><ul>
+<li><a class="reference" href="#fuse-and-the-command-line" id="id23" name="id23">FUSE and the command line</a></li>
+<li><a class="reference" href="#simple-objects-to-represent-system-structures" id="id24" name="id24">Simple objects to represent system structures</a></li>
+<li><a class="reference" href="#filehandles-can-also-be-objects-if-you-want" id="id25" name="id25">Filehandles can also be objects if you want</a></li>
+<li><a class="reference" href="#complete-support-for-hi-lib" id="id26" name="id26">Complete support for hi-lib</a></li>
+<li><a class="reference" href="#reflection" id="id27" name="id27">Reflection</a></li>
+<li><a class="reference" href="#long-term-compatibility" id="id28" name="id28">Long-term compatibility</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section">
+<h1><a class="toc-backref" href="#id19" id="old-api" name="old-api">Old API</a></h1>
+<div class="section">
+<h2><a class="toc-backref" href="#id20" id="enforcing-compatibility" name="enforcing-compatibility">Enforcing compatibility</a></h2>
+<p>There are lot of existing Python based FUSE based filesystems out there.
+They won't work with the current fuse-py code as is; however, we'd like
+to keep on using them. What can we do?</p>
+<p>Easy it is: just set <tt class="docutils literal"><span class="pre">fuse.fuse_python_api</span></tt> to <tt class="docutils literal"><span class="pre">(0,</span> <span class="pre">1)</span></tt> before you invoke
+your filesystem. This can be achieved externally too, by setting the
+<tt class="docutils literal"><span class="pre">FUSE_PYTHON_API</span></tt> environment variable to <tt class="docutils literal"><span class="pre">0.1</span></tt>. <a class="footnote-reference" href="#id3" id="id1" name="id1">[1]</a> <a class="footnote-reference" href="#id4" id="id2" name="id2">[2]</a></p>
+<table class="docutils footnote" frame="void" id="id3" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id1" name="id3">[1]</a></td><td>Setting <tt class="docutils literal"><span class="pre">fuse.compat_0_1</span></tt> to <tt class="docutils literal"><span class="pre">True</span></tt> or having
+<tt class="docutils literal"><span class="pre">FUSE_PYTHON_COMPAT</span> <span class="pre">=</span> <span class="pre">0.1</span></tt> in the environment still works,
+but it's deprecated.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="id4" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id2" name="id4">[2]</a></td><td>Cf. <a class="reference" href="#long-term-compatibility">Long-term compatibility</a>.</td></tr>
+</tbody>
+</table>
+</div>
+<div class="section">
+<h2><a class="toc-backref" href="#id21" id="what-s-incompatible-anyway" name="what-s-incompatible-anyway">What's incompatible, anyway?</a></h2>
+<ul class="simple">
+<li><tt class="docutils literal"><span class="pre">Fuse</span></tt> instance initialization</li>
+<li>Handling of command line options</li>
+<li>Transferring structured system data (file/filesystem attributes, directory
+entries) to the FUSE library</li>
+<li><cite>getdir</cite> fs method ditched in favor of <cite>readdir</cite></li>
+</ul>
+<p>That is, to upgrade your filesystem to the new API, you will have to
+rewrite:</p>
+<ul class="simple">
+<li>all your code between instantiating <tt class="docutils literal"><span class="pre">Fuse</span></tt> and calling the
+<tt class="docutils literal"><span class="pre">main()</span></tt> method of the instance (and the <tt class="docutils literal"><span class="pre">__init__()</span></tt>, <tt class="docutils literal"><span class="pre">main()</span></tt>
+methods of your <tt class="docutils literal"><span class="pre">Fuse</span></tt> derived class, if you have overwritten the
+original)</li>
+<li>the following fs methods: <cite>getattr</cite>, <cite>statfs</cite>, <cite>getdir</cite>.</li>
+</ul>
+</div>
+</div>
+<div class="section">
+<h1><a class="toc-backref" href="#id22" id="new-api" name="new-api">New API</a></h1>
+<p>The basic layout is the same: to start with, you get a class,
+<tt class="docutils literal"><span class="pre">fuse.Fuse</span></tt>. You implement a filesystem by subclassing this class and
+add the filesystem as class methods. You can mount your filesystem class
+by calling the <tt class="docutils literal"><span class="pre">main()</span></tt> method of one of its instances.  The list of
+possible filesystem methods is available as <tt class="docutils literal"><span class="pre">fuse.Fuse._attrs</span></tt>. <a class="footnote-reference" href="#id6" id="id5" name="id5">[3]</a></p>
+<p>So what's new? The new API has put emphasis on the following themes:</p>
+<ul class="simple">
+<li>FUSE is a command line driven library. Handling <tt class="docutils literal"><span class="pre">sys.argv</span></tt> and
+the FUSE command line should be integrated.</li>
+<li>Object based interface to system structures.</li>
+<li>Wrap stateful I/O in OO.</li>
+<li>Add support for all FUSE features which are available at the level
+the library is interfaced (the <em>high-level interface</em>).</li>
+<li>Reflection.</li>
+</ul>
+<p>Let's see how these are implemented.</p>
+<table class="docutils footnote" frame="void" id="id6" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id5" name="id6">[3]</a></td><td><p class="first">See <tt class="docutils literal"><span class="pre">examples/xmp.py</span></tt> for the argument list of the fs methods.</p>
+<p>Regarding return values: in each method, you can signal success or
+error by returning <tt class="docutils literal"><span class="pre">0</span></tt> (<em>succes</em>), a negative number (<em>error</em>,
+interpreted as negated errno), not returning anything (<em>success</em>) or
+by raising (not catching) an exception (<em>error</em>, Python infers an
+errno from the nature of the exception).</p>
+<p class="last">For most methods this just does the job (eg., you don't need to pass
+back anything after handling an <cite>mkdir</cite> request, only success/error).
+Some others require data being passed on from your handler to FUSE
+(eg., <cite>read</cite>, <cite>getattr</cite>). Then just return with a suitable object (a
+string for <cite>read</cite>, a stat result alike for <cite>getattr</cite>, cf.  <a class="reference" href="#simple-objects-to-represent-system-structures">Simple
+objects to represent system structures</a>).  If the object is not
+suitable, then FUSE will signal an EINVAL to the system; you won't
+get feedback about it. (The badness shows up in FUSE's inner context,
+out of Python's, so raising an exception makes no sense. We could
+wrap some fs methods into format valifiers; currently we don't do
+that.)</p>
+</td></tr>
+</tbody>
+</table>
+<div class="section">
+<h2><a class="toc-backref" href="#id23" id="fuse-and-the-command-line" name="fuse-and-the-command-line">FUSE and the command line</a></h2>
+<p>Crudely there can be two ways to provide configuration hooks to some
+C library:</p>
+<ul class="simple">
+<li>One is having a config structure as a part of the API, which is to be
+filled and pass to some constructor or initializator when you start
+interfacing with the library. Such an interface can be easily used
+from C, but it is very fragile wrt. changing the config options.</li>
+<li>Other is to use some kind of markup or domain specific language
+(<em>DSL</em>). This is flexible, but there should be provided a
+parser/generator for this language to be possible to make use of it.</li>
+</ul>
+<p>FUSE chose the latter way. Instead of using XML or some other widely
+used config format, FUSE made a simple decision: let the command line be
+our DSL -- we have to grok the command line anyway. <a class="footnote-reference" href="#id10" id="id7" name="id7">[4]</a></p>
+<p>So, there are two command lines in the game. One is the actual command
+line (<tt class="docutils literal"><span class="pre">sys.argv</span></tt>), the other is the FUSE command line: the library can
+be initialized with an <tt class="docutils literal"><span class="pre">(argc,</span> <span class="pre">argv)</span></tt> pair.</p>
+<p>This makes the library user to want urgently:</p>
+<ul class="simple">
+<li>A way to easily generate a FUSE compatible command line from an abstract
+spec.</li>
+<li>A way to easily extract such an abstract spec from the actual command
+line.</li>
+</ul>
+<p>(... and these two procedures should interfere <em>only via the spec</em>.)</p>
+<p>The new API does this as follows:</p>
+<ul>
+<li><p class="first">Now it's the Python code's duty to put together a complete FUSE command line
+(in the form of a Python sequence). <a class="footnote-reference" href="#id11" id="id8" name="id8">[5]</a></p>
+</li>
+<li><p class="first"><tt class="docutils literal"><span class="pre">FuseArgs</span></tt> is the class for the abstract specification: the
+<tt class="docutils literal"><span class="pre">mountpoint</span></tt>, <tt class="docutils literal"><span class="pre">set_mod()</span></tt>, and <tt class="docutils literal"><span class="pre">add()</span></tt> attributes/methods enable
+you to set up such a beast; <tt class="docutils literal"><span class="pre">assemble()</span></tt> dumps a complete FUSE
+command line.</p>
+</li>
+<li><p class="first"><tt class="docutils literal"><span class="pre">Fuse</span></tt> got a <tt class="docutils literal"><span class="pre">parser</span></tt> attribute. It's an instance of
+<tt class="docutils literal"><span class="pre">FuseOptParse</span></tt>, which is derived from the <tt class="docutils literal"><span class="pre">OptionParser</span></tt> class of
+<a class="reference" href="http://docs.python.org/lib/module-optparse.html">optparse</a>. <a class="footnote-reference" href="#id12" id="id9" name="id9">[6]</a></p>
+<p><tt class="docutils literal"><span class="pre">FuseOptParse</span></tt> groks a new kind of option (a subclass of
+<tt class="docutils literal"><span class="pre">Option</span></tt>), which takes no short or long opts; it matches or not
+based on its <tt class="docutils literal"><span class="pre">mountopt</span></tt> attribute, which is looked for among the
+comma-separated members of a <tt class="docutils literal"><span class="pre">-o</span></tt> option.</p>
+<p>You can specify handlers these mountopts, just like to ordinary
+options. The unhandled suboptions are collected in a <tt class="docutils literal"><span class="pre">FuseArgs</span></tt>
+instance.</p>
+</li>
+<li><p class="first">Calling <tt class="docutils literal"><span class="pre">Fuse</span></tt>'s <tt class="docutils literal"><span class="pre">parse()</span></tt> method performs the parsing, and makes
+a note of the resulting <tt class="docutils literal"><span class="pre">FuseArgs</span></tt> instance. When you invoke
+<tt class="docutils literal"><span class="pre">Fuse</span></tt>'s <tt class="docutils literal"><span class="pre">main()</span></tt>, the FUSE command line will be inferred from
+this instance.</p>
+</li>
+</ul>
+<table class="docutils footnote" frame="void" id="id10" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id7" name="id10">[4]</a></td><td>Originally this idea seemed as simple as there was no dedicated
+parser/generator interface provided with the library. With FUSE 2.5 we
+finally got the <tt class="docutils literal"><span class="pre">fuse_opt</span></tt> subAPI to make the command line more
+accessible. That's for C programming, so we don't deal with it here.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="id11" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id8" name="id11">[5]</a></td><td>It wasn't like so: in earlier versions, Python passed down several
+partially parsed pieces of the FUSE command line to the C code, which
+used these directly in low level functions of the library, getting behind
+the main commandline parsing routine of the FUSE lib with no real reason.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="id12" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id9" name="id12">[6]</a></td><td>To be precise, we have the <tt class="docutils literal"><span class="pre">SubbedOptParse</span></tt> subclass of
+<tt class="docutils literal"><span class="pre">OptionParser</span></tt> and <tt class="docutils literal"><span class="pre">FuseOptParse</span></tt> is further derived from
+<tt class="docutils literal"><span class="pre">SubbedOptParse</span></tt>. <tt class="docutils literal"><span class="pre">SubbedOptParse</span></tt> is a generic class for
+parsing and handling suboptions.</td></tr>
+</tbody>
+</table>
+</div>
+<div class="section">
+<h2><a class="toc-backref" href="#id24" id="simple-objects-to-represent-system-structures" name="simple-objects-to-represent-system-structures">Simple objects to represent system structures</a></h2>
+<p>In old Pythons, <tt class="docutils literal"><span class="pre">os.stat()</span></tt> returned file attributes as a tuple, and
+for the convenient access of the stat values, you got a bunch of
+constats with it (so you queried file size like
+<tt class="docutils literal"><span class="pre">os.stat(&quot;foofile&quot;)[stat.ST_SIZE]</span></tt>). While this approach still works,
+and if you print a stat result, it looks like a tuple, <em>it is, in fact,
+not a tuple</em>. It's an object which is immutable and provides the
+sequence protocol, just like tuple, but it has direct stat field
+accessors. That is, you can do it now like
+<tt class="docutils literal"><span class="pre">os.stat(&quot;foofile&quot;).st_size</span></tt>.</p>
+<p>The same is the case with the FUSE bindings: for <cite>getattr</cite>, you are to
+return an object which has attributes like those of an <tt class="docutils literal"><span class="pre">os.stat()</span></tt>
+result, and for <cite>statfs</cite>, you are to return an object which has
+attributes like those of an <tt class="docutils literal"><span class="pre">os.statvfs()</span></tt> result. This, of course, can
+be achieved by calling <tt class="docutils literal"><span class="pre">os.stat()</span></tt>, resp. <tt class="docutils literal"><span class="pre">os.statvfs()</span></tt> and passing
+on the result of this call. But you might feel like starting from
+scratch. You can build on the <tt class="docutils literal"><span class="pre">fuse.Stat</span></tt> and <tt class="docutils literal"><span class="pre">fuse.StatVfs</span></tt>
+classes. Subclass and/or instantiate them and specify the stat/statvfs
+attributes.</p>
+<p>Similarly, when listing directories, you have to return a sequence of
+<tt class="docutils literal"><span class="pre">fuse.Direntry</span></tt> objects which can be constructed from filenames
+(<tt class="docutils literal"><span class="pre">fuse.Direntry(&quot;foofile&quot;)</span></tt>).</p>
+<p>Does the above senctence make sense? I hope so. Anyway, <em>it's not true
+as is</em>. (Truth has been sacrified for making it short.) Don't worry, we
+uncover the lies immediately:</p>
+<ul class="simple">
+<li><em>You don't necessarily have to return a sequence</em>. You just have to
+return an object which implements the <em>iterator protocol</em>. In
+practice, this means that you can <em>yield</em> the direntries one by one,
+instead of aggregating them into a sequence.</li>
+<li>The direntries don't have to be instances of <tt class="docutils literal"><span class="pre">fuse.Direntry</span></tt>, they
+are just required to have some attributes. The ones other than
+<tt class="docutils literal"><span class="pre">name</span></tt> are probably not interesting for you. If you have large
+directories, you might want to specify a unique <tt class="docutils literal"><span class="pre">offset</span></tt> value for
+the direntries. This makes it possible for the system to read your dir
+in several chunks, and in each turn, reading can be continued from
+where it has been put off (for this to work, you have to be able to
+decode an <tt class="docutils literal"><span class="pre">offset</span></tt> and find the direntry which it belongs to).</li>
+</ul>
+</div>
+<div class="section">
+<h2><a class="toc-backref" href="#id25" id="filehandles-can-also-be-objects-if-you-want" name="filehandles-can-also-be-objects-if-you-want">Filehandles can also be objects if you want</a></h2>
+<p>The FUSE library (and the Python new API) supports stateful I/O. That
+is, when you open a file, you can choose return an arbitrary object, a
+so called <em>filehandle</em>. <a class="footnote-reference" href="#id15" id="id13" name="id13">[7]</a> FUSE internally will allocate a (FUSE)
+filehandle upon open, and keep a record of your (Python) filehandle.
+When the system will want to use the FUSE filehandle for I/O, the
+respective Python method will get the (py-)filehandle as an argument.
+Ie., you can use the filehandle to preserve a state.</p>
+<p>You might as well want the filehandle to be an instance of a dedicated
+class, and want the filesystem methods get delegated to the filehandle.</p>
+<p>The new API can arrange this for you: set up a class, say <tt class="docutils literal"><span class="pre">Myfile</span></tt>,
+which implements the I/O related methods (<cite>read</cite>, <cite>write</cite>, ...), and set
+<tt class="docutils literal"><span class="pre">foose.file_class</span> <span class="pre">=</span> <span class="pre">Myfile</span></tt> before calling <tt class="docutils literal"><span class="pre">foose.main()</span></tt> (where
+<tt class="docutils literal"><span class="pre">foose</span></tt> is an instance of <tt class="docutils literal"><span class="pre">Fuse</span></tt>). This will also imply that the
+<cite>open</cite> fs method will be handled by instantiating <tt class="docutils literal"><span class="pre">Myfile</span></tt>. Also note
+that the <em>path</em> argument will be stripped upon delegation (except for
+init time).</p>
+<p>You can do the same for directories, too. Directory I/O methods have
+similar names to file ones, just postfixed with <cite>dir</cite> (like <cite>readdir</cite>),
+and there are not that many of them (there is no <cite>writedir</cite>). You can
+register a directory class by setting the <tt class="docutils literal"><span class="pre">dir_class</span></tt> <tt class="docutils literal"><span class="pre">Fuse</span></tt>
+attribute. I bet you don't wanna use this feature, though.</p>
+<p>Another use of filehandles is that they can be used for adjusting some FUSE
+tunables <em>filewise</em>. That is, if you return a  py-filehandle object so that it
+has a <tt class="docutils literal"><span class="pre">keep_cache</span></tt> or <tt class="docutils literal"><span class="pre">direct_io</span></tt> attribute of value <tt class="docutils literal"><span class="pre">True</span></tt>, then the
+respective option will be enabled for the given file by FUSE <a class="footnote-reference" href="#id16" id="id14" name="id14">[8]</a>. As a special
+case, if the returned py-filehandle is an instance of <tt class="docutils literal"><span class="pre">fuse.FuseFileInfo</span></tt>, it
+will be used for nothing else apart from testing the <tt class="docutils literal"><span class="pre">keep_cache</span></tt> /
+<tt class="docutils literal"><span class="pre">direct_io</span></tt> attributes (after which it will be disposed).</p>
+<table class="docutils footnote" frame="void" id="id15" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id13" name="id15">[7]</a></td><td>although it should not be an integer, as integers are treated as
+error values</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="id16" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id14" name="id16">[8]</a></td><td>See the meaning of these options eg.  in standard FUSE help message,
+which you can read by, eg., running <tt class="docutils literal"><span class="pre">example/xmp.py</span> <span class="pre">-h</span></tt> from the root of
+the FUSE Python bindings source tree.</td></tr>
+</tbody>
+</table>
+</div>
+<div class="section">
+<h2><a class="toc-backref" href="#id26" id="complete-support-for-hi-lib" name="complete-support-for-hi-lib">Complete support for hi-lib</a></h2>
+<p>The Python bindings support all highlevel (pathname based) methods of
+the Fuse library as of API revision 26, including <cite>create</cite>, <cite>access</cite>,
+<cite>flush</cite>, extended attributes, advisory file locking, nanosec precise
+setting of acces/modify times, and <cite>bmap</cite>.</p>
+</div>
+<div class="section">
+<h2><a class="toc-backref" href="#id27" id="reflection" name="reflection">Reflection</a></h2>
+<p>In order to use the stateful I/O features as described above, the FUSE
+library on your system has to be recent enough. It's very likely that it
+will be so, as stateful I/O is around since a while, but if not... let's
+try proactively prevent cryptic bug reports.</p>
+<p>Therefore there is <tt class="docutils literal"><span class="pre">fuse.feature_assert()</span></tt> at your disposal. While
+there are several possible features you can assert, the form you will
+most likely use is <tt class="docutils literal"><span class="pre">feature_assert(&quot;stateful_files&quot;)</span></tt>. This will raise
+an exception if stateful I/O on files is not supported.</p>
+<p>When it comes to reflection, we see that the command line based FUSE
+config machinery is sadly unidirectional <a class="footnote-reference" href="#id18" id="id17" name="id17">[9]</a>. There is no simple way
+for querying the option list recognized by the lib. The best we have is
+that we can dump a help message. The new Python API tries to make use of
+this: it can mangle the help output into an instance of the
+aforementioned <tt class="docutils literal"><span class="pre">FuseArgs</span></tt> class (<tt class="docutils literal"><span class="pre">Fuse.fuseoptref()</span></tt>). The most
+convenient way to use this as follows: take a <tt class="docutils literal"><span class="pre">FuseArgs</span></tt> instance, eg.
+as its yielded by parsing with <tt class="docutils literal"><span class="pre">FuseOptParse</span></tt>, and call its
+<tt class="docutils literal"><span class="pre">filter()</span></tt> method. This returns a new <tt class="docutils literal"><span class="pre">FuseArgs</span></tt> with the <em>rejected</em>
+options (which are not understood by the lib, according to the help
+message), and also purges out these from self, so the remainder can be
+safely passed down to FUSE.</p>
+<table class="docutils footnote" frame="void" id="id18" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id17" name="id18">[9]</a></td><td>We can argue that it's not that sad. We just pass on to FUSE
+what we get from the user and that either eats it or blows up. Why
+would we want more sophistication?</td></tr>
+</tbody>
+</table>
+</div>
+<div class="section">
+<h2><a class="toc-backref" href="#id28" id="long-term-compatibility" name="long-term-compatibility">Long-term compatibility</a></h2>
+<p>Your filesystem is expected to set <tt class="docutils literal"><span class="pre">fuse.fuse_python_api</span></tt> in order to
+make it easy for the fuse module to find out the which FUSE-Python API revision
+is appropriate for your code. Concretely, set <tt class="docutils literal"><span class="pre">fuse.fuse_python_api</span></tt>
+to the value of <tt class="docutils literal"><span class="pre">fuse.FUSE_PYTHON_API_VERSION</span></tt> as it's definied in the fuse.pyi
+instance you code your filesystem against. This ensures that your code will
+keep working even if further API revisions take place.</p>
+</div>
+</div>
+</div>
+</body>
+</html>

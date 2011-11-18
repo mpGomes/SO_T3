@@ -1,0 +1,1546 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html dir='ltr' xmlns='http://www.w3.org/1999/xhtml' xmlns:b='http://www.google.com/2005/gml/b' xmlns:data='http://www.google.com/2005/gml/data' xmlns:expr='http://www.google.com/2005/gml/expr'>
+<head>
+<meta content='text/html; charset=UTF-8' http-equiv='Content-Type'/>
+<script type="text/javascript">(function() { var a=window;function c(b){this.t={};this.tick=function(b,i,d){d=d!=void 0?d:(new Date).getTime();this.t[b]=[d,i]};this.tick("start",null,b)}var e=new c;a.jstiming={Timer:c,load:e};try{var g=null;a.chrome&&a.chrome.csi&&(g=Math.floor(a.chrome.csi().pageT));g==null&&a.gtbExternal&&(g=a.gtbExternal.pageT());g==null&&a.external&&(g=a.external.pageT);g&&(a.jstiming.pt=g)}catch(h){};a.tickAboveFold=function(b){var f=0;if(b.offsetParent){do f+=b.offsetTop;while(b=b.offsetParent)}b=f;b<=750&&a.jstiming.load.tick("aft")};var j=false;function k(){j||(j=true,a.jstiming.load.tick("firstScrollTime"))}a.addEventListener?a.addEventListener("scroll",k,false):a.attachEvent("onscroll",k);
+ })();</script>
+<meta content='true' name='MSSmartTagsPreventParsing'/>
+<meta content='blogger' name='generator'/>
+<link href='http://pysnippet.blogspot.com/favicon.ico' rel='icon' type='image/x-icon'/>
+<link href='http://pysnippet.blogspot.com/2009/11/fuse-filesystem-in-userspace-part-1.html' rel='canonical'/>
+<link rel="alternate" type="application/atom+xml" title="PySnippet - Atom" href="http://pysnippet.blogspot.com/feeds/posts/default" />
+<link rel="alternate" type="application/rss+xml" title="PySnippet - RSS" href="http://pysnippet.blogspot.com/feeds/posts/default?alt=rss" />
+<link rel="service.post" type="application/atom+xml" title="PySnippet - Atom" href="http://www.blogger.com/feeds/7970464356958190643/posts/default" />
+<link rel="EditURI" type="application/rsd+xml" title="RSD" href="http://www.blogger.com/rsd.g?blogID=7970464356958190643" />
+<link rel="alternate" type="application/atom+xml" title="PySnippet - Atom" href="http://pysnippet.blogspot.com/feeds/138020025185706347/comments/default" />
+<!--[if IE]> <script> (function() { var html5 = ("abbr,article,aside,audio,canvas,datalist,details," + "figure,footer,header,hgroup,mark,menu,meter,nav,output," + "progress,section,time,video").split(','); for (var i = 0; i < html5.length; i++) { document.createElement(html5[i]); } try { document.execCommand('BackgroundImageCache', false, true); } catch(e) {} })(); </script> <![endif]-->
+<title>PySnippet: FUSE - Filesystem in Userspace part 1</title>
+<link type='text/css' rel='stylesheet' href='http://www.blogger.com/static/v1/widgets/1690079772-widget_css_bundle.css' />
+<link type="text/css" rel="stylesheet" href="http://www.blogger.com/dyn-css/authorization.css?targetBlogID=7970464356958190643&zx=e6ed6370-c2b6-4232-83c8-7345c93bd683"/>
+<style type="text/css">
+#navbar-iframe { display:block }
+</style>
+<style id='page-skin-1' type='text/css'><!--
+/*
+-----------------------------------------------
+Blogger Template Style
+Name:     Freshmade Software
+Author:   Klodian
+URL:      www.deluxetemplates.net
+Date:     September 2009
+License:  This free Blogger template is licensed under the Creative Commons Attribution 3.0 License, which permits both personal and commercial use.
+However, to satisfy the 'attribution' clause of the license, you are required to keep the footer links intact which provides due credit to its authors. For more specific details about the license, you may visit the URL below:
+http://creativecommons.org/licenses/by/3.0/
+----------------------------------------------- */
+#navbar-iframe {
+display: none !important;
+}
+/* Variable definitions
+====================
+<Variable name="bgcolor" description="Page Background Color"
+type="color" default="#fff">
+<Variable name="textcolor" description="Text Color"
+type="color" default="#333">
+<Variable name="linkcolor" description="Link Color"
+type="color" default="#58a">
+<Variable name="pagetitlecolor" description="Blog Title Color"
+type="color" default="#666">
+<Variable name="descriptioncolor" description="Blog Description Color"
+type="color" default="#999">
+<Variable name="titlecolor" description="Post Title Color"
+type="color" default="#c60">
+<Variable name="bordercolor" description="Border Color"
+type="color" default="#ccc">
+<Variable name="sidebarcolor" description="Sidebar Title Color"
+type="color" default="#999">
+<Variable name="sidebartextcolor" description="Sidebar Text Color"
+type="color" default="#666">
+<Variable name="visitedlinkcolor" description="Visited Link Color"
+type="color" default="#999">
+<Variable name="bodyfont" description="Text Font"
+type="font" default="normal normal 100% Georgia, Serif">
+<Variable name="headerfont" description="Sidebar Title Font"
+type="font"
+default="normal normal 78% 'Trebuchet MS',Trebuchet,Arial,Verdana,Sans-serif">
+<Variable name="pagetitlefont" description="Blog Title Font"
+type="font"
+default="normal normal 200% Georgia, Serif">
+<Variable name="descriptionfont" description="Blog Description Font"
+type="font"
+default="normal normal 78% 'Trebuchet MS', Trebuchet, Arial, Verdana, Sans-serif">
+<Variable name="postfooterfont" description="Post Footer Font"
+type="font"
+default="normal normal 78% 'Trebuchet MS', Trebuchet, Arial, Verdana, Sans-serif">
+<Variable name="startSide" description="Side where text starts in blog language"
+type="automatic" default="left">
+<Variable name="endSide" description="Side where text ends in blog language"
+type="automatic" default="right">
+*/
+/* Use this with templates/template-twocol.html */
+body {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:#F6F6F6 url(http://3.bp.blogspot.com/_Zt-MFCckzsc/Srz91eiTmUI/AAAAAAAACYY/17COZ3NW11g/s1600/content-wrapper.gif) repeat-y scroll center top;
+color:#333333;
+font-family:arial;
+font-size:small;
+font-size-adjust:none;
+font-stretch:normal;
+font-style:normal;
+font-variant:normal;
+font-weight:normal;
+line-height:normal;
+margin:0;
+text-align:center;
+}
+a:link {
+color:#224466;
+text-decoration:none;
+}
+a:visited {
+color:#224466;
+text-decoration:none;
+}
+a:hover {
+color:#5588AA;
+text-decoration:underline;
+}
+a img {
+border-width:0;
+}
+#header-wrapper {
+margin:0 auto;
+width:960px;
+}
+#header-inner {
+background-position:center center;
+margin-left:auto;
+margin-right:auto;
+}
+#header {
+color:#EEEEEE;
+text-align:left;
+}
+#header h1 {
+font-family:helvetica;
+font-size:34px;
+font-size-adjust:none;
+font-stretch:normal;
+font-style:normal;
+font-variant:normal;
+font-weight:bold;
+letter-spacing:-2px;
+line-height:normal;
+margin:0;
+padding:30px 25px 2px;
+text-transform:none;
+}
+#header a {
+color:#EEEEEE;
+text-decoration:none;
+}
+#header a:hover {
+color:#eee;
+}
+#header .description {
+color:#CCCCCC;
+font-family:'Trebuchet MS',Trebuchet,Arial,Verdana,Sans-serif;
+font-size:78%;
+font-size-adjust:none;
+font-stretch:normal;
+font-style:normal;
+font-variant:normal;
+font-weight:normal;
+letter-spacing:0.2em;
+line-height:normal;
+margin:0 5px 5px;
+max-width:700px;
+padding:0 23px 30px;
+text-transform:uppercase;
+}
+#header img {
+margin-left:auto;
+margin-right:auto;
+}
+#outer-wrapper {
+font-family:arial;
+font-size:100%;
+font-size-adjust:none;
+font-stretch:normal;
+font-style:normal;
+font-variant:normal;
+font-weight:normal;
+line-height:normal;
+margin:0 auto;
+text-align:left;
+width:960px;
+}
+#main-wrapper {
+border-right:1px solid #DEDEDE;
+float:left;
+margin-left:25px;
+overflow:hidden;
+padding-right:30px;
+width:580px;
+word-wrap:break-word;
+}
+#sidebar-wrapper {
+float:right;
+margin-right:25px;
+overflow:hidden;
+width:272px;
+word-wrap:break-word;
+}
+h2 {
+border-bottom:1px solid;
+color:#333333;
+font-family:arial;
+font-size:16px;
+font-size-adjust:none;
+font-stretch:normal;
+font-style:normal;
+font-variant:normal;
+font-weight:bold;
+letter-spacing:0;
+line-height:1.4em;
+margin:1.5em 0 0.75em;
+padding-left:3px;
+text-transform:none;
+}
+h2.date-header {
+border:medium none;
+color:#999999;
+font-family:georgia;
+font-size:12px;
+font-style:italic;
+font-weight:normal;
+letter-spacing:0;
+margin:1.5em 0 0.5em;
+text-transform:none;
+}
+.post {
+margin:0.5em 0 1.5em;
+padding-bottom:1.5em;
+}
+.post h3 {
+color:#333333;
+font-family:arial;
+font-size:22px;
+font-weight:normal;
+line-height:1.4em;
+margin:0.25em 0 0;
+padding:0 0 4px;
+}
+.post h3 a, .post h3 a:visited, .post h3 strong {
+color:#333333;
+display:block;
+font-weight:bold;
+text-decoration:none;
+}
+.post h3 strong, .post h3 a:hover {
+color:#333333;
+}
+.post-body {
+font-family:arial;
+font-size:14px;
+line-height:1.6em;
+margin:0 0 0.75em;
+}
+.post-body blockquote {
+line-height:1.3em;
+}
+.post-footer {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:#EEEEEE none repeat scroll 0 0;
+border-left:2px solid #CCCCCC;
+border-top:1px solid #CCCCCC;
+color:#999999;
+font-family:georgia;
+font-size:12px;
+font-size-adjust:none;
+font-stretch:normal;
+font-style:italic;
+font-variant:normal;
+font-weight:normal;
+letter-spacing:0;
+line-height:1.4em;
+margin:0.75em 0;
+padding-bottom:6px;
+padding-left:10px;
+padding-top:6px;
+text-transform:none;
+}
+.comment-link {
+margin-left:0.6em;
+}
+.post img {
+border:1px solid #CCCCCC;
+padding:1px;
+}
+.post blockquote {
+font-family:georgia;
+font-style:italic;
+margin:1em 20px;
+}
+.post blockquote p {
+margin:0.75em 0;
+}
+#comments h4 {
+color:#999999;
+font-weight:bold;
+letter-spacing:0;
+line-height:1.4em;
+margin:1em 0;
+text-transform:none;
+}
+#comments-block {
+line-height:1.6em;
+margin:1em 0 1.5em;
+}
+#comments-block .comment-author {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:#DEDEDE none repeat scroll 0 0;
+margin:0.5em 0;
+padding-bottom:4px;
+padding-left:8px;
+padding-top:4px;
+}
+#comments-block .comment-body {
+border-left:1px solid #DEDEDE;
+border-right:1px solid #DEDEDE;
+margin-top:-6px;
+padding-left:10px;
+padding-top:10px;
+}
+#comments-block .comment-footer {
+border-bottom:1px solid #DEDEDE;
+border-left:1px solid #DEDEDE;
+border-right:1px solid #DEDEDE;
+font-size:11px;
+line-height:1.4em;
+margin:-0.25em 0 2em;
+padding-bottom:5px;
+padding-left:10px;
+text-transform:none;
+}
+#comments-block .comment-body p {
+margin:0;
+padding-bottom:15px;
+}
+.deleted-comment {
+color:gray;
+font-style:italic;
+}
+#blog-pager-newer-link {
+float:left;
+}
+#blog-pager-older-link {
+float:right;
+}
+#blog-pager {
+text-align:center;
+}
+.feed-links {
+clear:both;
+line-height:2.5em;
+}
+.sidebar {
+color:#666666;
+font-family:arial;
+line-height:1.5em;
+}
+.sidebar ul {
+list-style-image:none;
+list-style-position:outside;
+list-style-type:none;
+margin:0;
+padding:0;
+}
+.sidebar li {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:transparent url(http://2.bp.blogspot.com/_Zt-MFCckzsc/SqIq4DxdI8I/AAAAAAAACHM/nVYDxNI0R8o/s400/bulled.png) no-repeat scroll left center;
+line-height:1.5em;
+margin:0;
+padding:0 0 0.25em 15px;
+}
+.sidebar .widget, .main .widget {
+margin:0 0 1.5em;
+padding:0 0 1.5em;
+}
+.main .Blog {
+border-bottom-width:0;
+}
+.profile-img {
+border:1px solid #CCCCCC;
+float:left;
+margin:0 5px 5px 0;
+padding:4px;
+}
+.profile-data {
+color:#999999;
+font-family:'Trebuchet MS',Trebuchet,Arial,Verdana,Sans-serif;
+font-size:78%;
+font-size-adjust:none;
+font-stretch:normal;
+font-style:normal;
+font-variant:normal;
+font-weight:bold;
+letter-spacing:0.1em;
+line-height:1.6em;
+margin:0;
+text-transform:uppercase;
+}
+.profile-datablock {
+margin:0.5em 0;
+}
+.profile-textblock {
+line-height:1.6em;
+margin:0.5em 0;
+}
+.profile-link {
+font-family:'Trebuchet MS',Trebuchet,Arial,Verdana,Sans-serif;
+font-size:78%;
+font-size-adjust:none;
+font-stretch:normal;
+font-style:normal;
+font-variant:normal;
+font-weight:normal;
+letter-spacing:0.1em;
+line-height:normal;
+text-transform:uppercase;
+}
+#header-bg {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:#2F2F2F url(http://1.bp.blogspot.com/_Zt-MFCckzsc/Sr0AGYKsHYI/AAAAAAAACYg/AUmJ_eNVDww/s1600/header.gif) repeat-x scroll left top;
+}
+#header-bgimg {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:transparent url(http://4.bp.blogspot.com/_Zt-MFCckzsc/Sr0BGrv2ZYI/AAAAAAAACYo/eDySqQpeT-E/s1600/header-wrapper-2.gif) repeat-y scroll center top;
+}
+ul.tabbed {
+display:inline;
+margin:0;
+padding:0;
+}
+ul.tabbed li {
+float:left;
+list-style-image:none;
+list-style-position:outside;
+list-style-type:none;
+}
+ul.tabbed a {
+text-decoration:none;
+}
+#navigation-wrapper {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:transparent url(http://3.bp.blogspot.com/_Zt-MFCckzsc/Sr0FD804J0I/AAAAAAAACYw/8OGC5k5YjLg/s1600/navigation.gif) repeat-x scroll left top;
+margin-top:-5px;
+}
+#navigation-wrapper-2 {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:transparent url(http://4.bp.blogspot.com/_Zt-MFCckzsc/Sr0FEkWO0FI/AAAAAAAACZA/4qlsmTFuc-k/s1600/navigation-wrapper-2.gif) no-repeat scroll center top;
+}
+#navigation {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:transparent url(http://3.bp.blogspot.com/_Zt-MFCckzsc/Sr0FD804J0I/AAAAAAAACYw/8OGC5k5YjLg/s1600/navigation.gif) repeat-x scroll left top;
+font-family:arial;
+margin:0 auto;
+min-height:46px;
+padding:0 8px;
+width:943px;
+}
+#navigation a {
+color:#EAE6DD;
+display:block;
+font-size:1.3em;
+font-weight:bold;
+padding:12px 12px 11px;
+}
+#navigation a:hover {
+color:#FFFFFF;
+}
+#navigation li.current_page_item a, #navigation li.current_page_parent a {
+color:#FFFFEE;
+}
+#navigation li.current_page_item a {
+}
+#navigation li.current_page_parent a {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:transparent url(http://1.bp.blogspot.com/_Zt-MFCckzsc/Sr0FEEN9jLI/AAAAAAAACY4/ARoRMLjfNsA/s1600/navigation-arrow.gif) no-repeat scroll center bottom;
+}
+#footer-wrapper {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:#A9A9A9 url(http://1.bp.blogspot.com/_Zt-MFCckzsc/Sr0JB_5SypI/AAAAAAAACZQ/B6GyLQIFUh4/s1600/footer-wrapper.gif) no-repeat scroll center bottom;
+color:#FFFFFF;
+margin:0 auto;
+padding-bottom:20px;
+}
+#footer {
+-moz-background-clip:border;
+-moz-background-inline-policy:continuous;
+-moz-background-origin:padding;
+background:#808080 none repeat scroll 0 0;
+font-family:arial;
+font-size:12px;
+height:30px;
+margin:0 auto;
+padding:16px 16px 4px;
+text-align:left;
+width:929px;
+}
+#footer a {
+color:#DDDDDD;
+text-decoration:none;
+}
+#footer a:hover {
+color:#FFFFFF;
+}
+#footer span.text-separator {
+color:#999999;
+padding:0 3px;
+}
+.left, .alignleft {
+float:left;
+}
+.right, .alignright {
+float:right;
+}
+.widget-content {
+padding-left:3px;
+}
+.dp-highlighter
+{
+font-family: "Consolas", "Monaco", "Courier New", Courier, monospace;
+font-size: 12px;
+background-color: #E7E5DC;
+width: 99%;
+overflow: auto;
+margin: 18px 0 18px 0 !important;
+padding-top: 1px; /* adds a little border on top when controls are hidden */
+}
+/* clear styles */
+.dp-highlighter ol,
+.dp-highlighter ol li,
+.dp-highlighter ol li span
+{
+margin: 0;
+padding: 0;
+border: none;
+}
+.dp-highlighter a,
+.dp-highlighter a:hover
+{
+background: none;
+border: none;
+padding: 0;
+margin: 0;
+}
+.dp-highlighter .bar
+{
+padding-left: 45px;
+}
+.dp-highlighter.collapsed .bar,
+.dp-highlighter.nogutter .bar
+{
+padding-left: 0px;
+}
+.dp-highlighter ol
+{
+list-style: decimal; /* for ie */
+background-color: #fff;
+margin: 0px 0px 1px 45px !important; /* 1px bottom margin seems to fix occasional Firefox scrolling */
+padding: 0px;
+color: #5C5C5C;
+}
+.dp-highlighter.nogutter ol,
+.dp-highlighter.nogutter ol li
+{
+list-style: none !important;
+margin-left: 0px !important;
+}
+.dp-highlighter ol li,
+.dp-highlighter .columns div
+{
+list-style: decimal-leading-zero; /* better look for others, override cascade from OL */
+list-style-position: outside !important;
+border-left: 3px solid #6CE26C;
+background-color: #F8F8F8;
+color: #5C5C5C;
+padding: 0 3px 0 10px !important;
+margin: 0 !important;
+line-height: 14px;
+}
+.dp-highlighter.nogutter ol li,
+.dp-highlighter.nogutter .columns div
+{
+border: 0;
+}
+.dp-highlighter .columns
+{
+background-color: #F8F8F8;
+color: gray;
+overflow: hidden;
+width: 100%;
+}
+.dp-highlighter .columns div
+{
+padding-bottom: 5px;
+}
+.dp-highlighter ol li.alt
+{
+background-color: #FFF;
+color: inherit;
+}
+.dp-highlighter ol li span
+{
+color: black;
+background-color: inherit;
+}
+/* Adjust some properties when collapsed */
+.dp-highlighter.collapsed ol
+{
+margin: 0px;
+}
+.dp-highlighter.collapsed ol li
+{
+display: none;
+}
+/* Additional modifications when in print-view */
+.dp-highlighter.printing
+{
+border: none;
+}
+.dp-highlighter.printing .tools
+{
+display: none !important;
+}
+.dp-highlighter.printing li
+{
+display: list-item !important;
+}
+/* Styles for the tools */
+.dp-highlighter .tools
+{
+padding: 3px 8px 3px 10px;
+font: 9px Verdana, Geneva, Arial, Helvetica, sans-serif;
+color: silver;
+background-color: #f8f8f8;
+padding-bottom: 10px;
+border-left: 3px solid #6CE26C;
+}
+.dp-highlighter.nogutter .tools
+{
+border-left: 0;
+}
+.dp-highlighter.collapsed .tools
+{
+border-bottom: 0;
+}
+.dp-highlighter .tools a
+{
+font-size: 9px;
+color: #a0a0a0;
+background-color: inherit;
+text-decoration: none;
+margin-right: 10px;
+}
+.dp-highlighter .tools a:hover
+{
+color: red;
+background-color: inherit;
+text-decoration: underline;
+}
+/* About dialog styles */
+.dp-about { background-color: #fff; color: #333; margin: 0px; padding: 0px; }
+.dp-about table { width: 100%; height: 100%; font-size: 11px; font-family: Tahoma, Verdana, Arial, sans-serif !important; }
+.dp-about td { padding: 10px; vertical-align: top; }
+.dp-about .copy { border-bottom: 1px solid #ACA899; height: 95%; }
+.dp-about .title { color: red; background-color: inherit; font-weight: bold; }
+.dp-about .para { margin: 0 0 4px 0; }
+.dp-about .footer { background-color: #ECEADB; color: #333; border-top: 1px solid #fff; text-align: right; }
+.dp-about .close { font-size: 11px; font-family: Tahoma, Verdana, Arial, sans-serif !important; background-color: #ECEADB; color: #333; width: 60px; height: 22px; }
+/* Language specific styles */
+.dp-highlighter .comment, .dp-highlighter .comments { color: #008200; background-color: inherit; }
+.dp-highlighter .string { color: blue; background-color: inherit; }
+.dp-highlighter .keyword { color: #069; font-weight: bold; background-color: inherit; }
+.dp-highlighter .preprocessor { color: gray; background-color: inherit; }
+
+--></style>
+<script src='http://syntaxhighlighter.googlecode.com/svn/trunk/Scripts/shCore.js' type='text/javascript'></script>
+<script src='http://syntaxhighlighter.googlecode.com/svn/trunk/Scripts/shBrushCpp.js' type='text/javascript'></script>
+<script src='http://syntaxhighlighter.googlecode.com/svn/trunk/Scripts/shBrushCss.js' type='text/javascript'></script>
+<script src='http://syntaxhighlighter.googlecode.com/svn/trunk/Scripts/shBrushJava.js' type='text/javascript'></script>
+<script src='http://syntaxhighlighter.googlecode.com/svn/trunk/Scripts/shBrushJScript.js' type='text/javascript'></script>
+<script src='http://syntaxhighlighter.googlecode.com/svn/trunk/Scripts/shBrushPython.js' type='text/javascript'></script>
+<script src='http://syntaxhighlighter.googlecode.com/svn/trunk/Scripts/shBrushXml.js' type='text/javascript'></script>
+<script src='http://syntaxhighlighter.googlecode.com/svn/trunk/Scripts/shBrushBash.js' type='text/javascript'></script>
+<script type="text/javascript">
+if (window.jstiming) window.jstiming.load.tick('headEnd');
+</script></head>
+<body>
+<div class='navbar section' id='navbar'><div class='widget Navbar' id='Navbar1'><script type="text/javascript">
+    function setAttributeOnload(object, attribute, val) {
+      if(window.addEventListener) {
+        window.addEventListener("load",
+          function(){ object[attribute] = val; }, false);
+      } else {
+        window.attachEvent('onload', function(){ object[attribute] = val; });
+      }
+    }
+  </script>
+<iframe src="http://www.blogger.com/navbar.g?targetBlogID=7970464356958190643&amp;blogName=PySnippet&amp;publishMode=PUBLISH_MODE_BLOGSPOT&amp;navbarType=BLUE&amp;layoutType=LAYOUTS&amp;searchRoot=http://pysnippet.blogspot.com/search&amp;blogLocale=en_US&amp;homepageUrl=http://pysnippet.blogspot.com/&amp;targetPostID=138020025185706347&amp;vt=-1422336137662212280" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" height="30px" width="100%" id="navbar-iframe" allowtransparency="true" title="Blogger Navigation and Search"></iframe>
+<div></div></div></div>
+<div id='header-bg'>
+<div id='header-bgimg'>
+<div id='header-wrapper'>
+<div class='header section' id='header'><div class='widget Header' id='Header1'>
+<div id='header-inner'>
+<div class='titlewrapper'>
+<h1 class='title'>
+<a href='http://pysnippet.blogspot.com/'>PySnippet</a>
+</h1>
+</div>
+<div class='descriptionwrapper'>
+<p class='description'><span>Python snippets and Linux related stuff</span></p>
+</div>
+</div>
+</div></div>
+</div>
+</div></div>
+<div id='navigation-wrapper'>
+<div id='navigation-wrapper-2'>
+<div id='navigation'>
+<ul class='tabbed'>
+<li class='current_page_item'><a Title='Home' href='http://pysnippet.blogspot.com/'>Home</a></li>
+<li><a href='http://pysnippet.blogspot.com/feeds/posts/default'>Posts RSS</a></li>
+<li><a href='http://pysnippet.blogspot.com/feeds/comments/default'>Comments RSS</a></li>
+<!-- li><a href='mailto:#'>Contact</a></li -->
+<li><a href='http://www.blogger.com/home'>Log In</a></li>
+</ul>
+<div class='clearer'></div>
+</div>
+</div>
+</div>
+<div id='outer-wrapper'><div id='wrap2'>
+<!-- skip links for text browsers -->
+<span id='skiplinks' style='display:none;'>
+<a href='#main'>skip to main </a> |
+      <a href='#sidebar'>skip to sidebar</a>
+</span>
+<div id='content-wrapper'>
+<div id='crosscol-wrapper' style='text-align:center'>
+<div class='crosscol section' id='crosscol'></div>
+</div>
+<div id='main-wrapper'>
+<div class='main section' id='main'><div class='widget Blog' id='Blog1'>
+<div class='blog-posts hfeed'>
+<!-- google_ad_section_start(name=default) -->
+<h2 class='date-header'>Sunday, November 15, 2009</h2>
+<div class='post hentry'>
+<a name='138020025185706347'></a>
+<h3 class='post-title entry-title'>
+<a href='http://pysnippet.blogspot.com/2009/11/fuse-filesystem-in-userspace-part-1.html'>FUSE - Filesystem in Userspace part 1</a>
+</h3>
+<div class='post-header-line-1'></div>
+<div class='post-body entry-content'>
+Here's the first part in a series of posts on implementing file systems using FUSE.
+<br /><br />
+Creating a file system can seem to be an intimidating task but with <a href="http://fuse.sourceforge.net/">FUSE</a> it's very easy and it gets even easier with python bindings. Any decent Linux distribution should include support for FUSE and be configured such that regular users (or a group) can mount file systems written with FUSE without having root access.<br />
+<br />
+If you are running Ubuntu you need to install the <i>python-fuse</i> package which contains the Python bindings for FUSE.<br />
+<br />
+<i>- Enough, show me the code</i><br />
+<br />
+<pre class="python" name="code">#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import errno
+import fuse
+import stat
+import time
+
+fuse.fuse_python_api = (0, 2)
+
+class MyFS(fuse.Fuse):
+    def __init__(self, *args, **kw):
+        fuse.Fuse.__init__(self, *args, **kw)
+
+    def getattr(self, path):
+        st = fuse.Stat()
+        st.st_mode = stat.S_IFDIR | 0755
+        st.st_nlink = 2
+        st.st_atime = int(time.time())
+        st.st_mtime = st.st_atime
+        st.st_ctime = st.st_atime
+
+        if path == '/':
+            pass
+        else:
+            return - errno.ENOENT
+        return st
+
+if __name__ == '__main__':
+    fs = MyFS()
+    fs.parse(errex=1)
+    fs.main()
+</pre>
+The example above shows how easy it is to create a mountable file system, it does nothing but is still a valid file system. The <i>MyFS</i> class implements a file system with no entries, it will always return <i>ENOENT</i> (No such file or directory) except for the root path. You should take a look at the <a href="http://sourceforge.net/apps/mediawiki/fuse/index.php?title=FUSE_Python_Reference">FUSE Python Reference</a> page which contains details about <i>FusePython</i> and, among other things, describes the stat object returned from the <i>getattr</i> method.<br />
+<br />
+Paste the example to a file, <i>MyFS.py</i>, and make the file executable:
+<br />
+<pre class="bash" name="code">$ chmod 755 MyFS.py
+</pre>
+Now create a directory which will be used as mount point and mount the file system:
+<br />
+<pre class="bash" name="code">$ mkdir myfs
+$ ls -l
+totalt 4
+drwxr-xr-x 2 mario mario 4096 2009-11-15 15:59 myfs
+-rwxr-xr-x 1 mario mario  648 2009-11-15 15:59 MyFS.py
+$ # This will mount the file system, try ./MyFS.py --help
+$ ./MyFS.py myfs
+$ ls -l
+totalt 0
+drwxr-xr-x 2 root  root    0 2009-11-15 16:10 myfs
+-rwxr-xr-x 1 mario mario 648 2009-11-15 15:59 MyFS.py
+</pre>
+Here we can see that the owner, size and time stamp changed on <i>myfs</i> after we mounted the file system. You can <i>cd</i> into <i>myfs</i>, but if you try to list the directory (file system root) you'll get an error:
+<pre class="bash" name="code">
+$ cd myfs
+$ ls
+ls: reading directory .: Function not implemented
+</pre>
+You got this error because we haven't implemented the <i>readdir</i> method which is invoked when listing a directory. To make this work we need to add a <i>readdir</i> method which returns (at least) the <i>'.'</i> and <i>'..'</i> entries. Add the following snippet to the class:
+<pre name="code" class="python">
+    def readdir(self, path, offset):
+        for e in '.', '..':
+            yield fuse.Direntry(e) 
+</pre>
+Before you continue you should unmount the file system:
+<pre class="bash" name="code">
+$ fusermount -u myfs
+</pre>
+This will unmount your FUSE file system as a regular user and doesn't require root access.<br />
+<br />
+Retry to mount and cd into the <i>myfs</i> directory:
+<pre name="code" class="bash">
+$ ./MyFS.py myfs
+$ cd myfs
+$ ls -a
+.  ..
+</pre>
+Alright, I think I'll stop for today.
+
+Oh, just one more thing... You won't get any print outputs nor tracebacks from your code if you don't start the file system in foreground mode. This is done by adding '-f' as argument when starting the file system.
+<pre name="code" class="bash">
+$ ./MyFS.py -f myfs
+</pre>
+It can be hard to tell why something doesn't work if you can't see tracebacks and print outputs.
+<div style='clear: both;'></div>
+</div>
+<div class='post-footer'>
+<div class='post-footer-line post-footer-line-1'><span class='post-author vcard'>
+Posted by
+<span class='fn'>Mario</span>
+</span>
+<span class='post-timestamp'>
+at
+<a class='timestamp-link' href='http://pysnippet.blogspot.com/2009/11/fuse-filesystem-in-userspace-part-1.html' rel='bookmark' title='permanent link'><abbr class='published' title='2009-11-15T20:50:00+01:00'>8:50 PM</abbr></a>
+</span>
+<span class='post-comment-link'>
+</span>
+<span class='post-icons'>
+<span class='item-control blog-admin pid-1159577949'>
+<a href='http://www.blogger.com/post-edit.g?blogID=7970464356958190643&postID=138020025185706347&from=pencil' title='Edit Post'>
+<img alt='' class='icon-action' height='18' src='http://img2.blogblog.com/img/icon18_edit_allbkg.gif' width='18'/>
+</a>
+</span>
+</span>
+</div>
+<div class='post-footer-line post-footer-line-2'><span class='post-labels'>
+Labels:
+<a href='http://pysnippet.blogspot.com/search/label/FUSE' rel='tag'>FUSE</a>,
+<a href='http://pysnippet.blogspot.com/search/label/Linux' rel='tag'>Linux</a>,
+<a href='http://pysnippet.blogspot.com/search/label/Python' rel='tag'>Python</a>
+</span>
+</div>
+<div class='post-footer-line post-footer-line-3'></div>
+</div>
+</div>
+<div class='comments' id='comments'>
+<a name='comments'></a>
+<h4>
+0
+comments:
+        
+</h4>
+<div id='Blog1_comments-block-wrapper'>
+<dl class='avatar-comment-indent' id='comments-block'>
+</dl>
+</div>
+<p class='comment-footer'>
+<div class='comment-form'>
+<a name='comment-form'></a>
+<h4 id='comment-post-message'>Post a Comment</h4>
+<p>
+</p>
+<a href='http://www.blogger.com/comment-iframe.g?blogID=7970464356958190643&postID=138020025185706347' id='comment-editor-src'></a>
+<iframe allowtransparency='true' class='blogger-iframe-colorize blogger-comment-from-post' frameborder='0' height='410' id='comment-editor' name='comment-editor' src='' width='100%'></iframe>
+<script type="text/javascript" src="http://www.blogger.com/static/v1/jsbin/2994450353-comment_from_post_iframe.js"></script>
+<script type='text/javascript'>
+      BLOG_CMT_createIframe('http://www.blogger.com/rpc_relay.html', '16047910058270711460');
+    </script>
+</div>
+</p>
+<div id='backlinks-container'>
+<div id='Blog1_backlinks-container'>
+<a name='links'></a><h4>
+</h4>
+<p class='comment-footer'>
+<a class='comment-link' href='' id='Blog1_backlinks-create-link' target='_blank'>
+</a>
+</p>
+</div>
+</div>
+</div>
+<div id="latency-138020025185706347"></div><script type="text/javascript">if (window['tickAboveFold']) {window['tickAboveFold'](document.getElementById("latency-138020025185706347")); } </script>
+<!-- google_ad_section_end -->
+</div>
+<div class='blog-pager' id='blog-pager'>
+<span id='blog-pager-newer-link'>
+<a class='blog-pager-newer-link' href='http://pysnippet.blogspot.com/2009/11/fuse-filesystem-in-userspace-part-2.html' id='Blog1_blog-pager-newer-link' title='Newer Post'>Newer Post</a>
+</span>
+<span id='blog-pager-older-link'>
+<a class='blog-pager-older-link' href='http://pysnippet.blogspot.com/2009/11/gmonitor.html' id='Blog1_blog-pager-older-link' title='Older Post'>Older Post</a>
+</span>
+<a class='home-link' href='http://pysnippet.blogspot.com/'>Home</a>
+</div>
+<div class='clear'></div>
+</div></div>
+</div>
+<div id='sidebar-wrapper'>
+<div class='sidebar section' id='sidebar'><div class='widget HTML' id='HTML1'>
+<h2 class='title'>About Me</h2>
+<div class='widget-content'>
+My name is Mario Boikov and I live in the southern part of Sweden. I'm working as an embedded system developer and focusing primarily on Linux.
+<br /><br />
+I started this blog with the intention to post small snippets, tutorials and other useful things regarding Python and Linux.
+<br /><br /> 
+Contact: <a href="mailto:mario.boikov@gmail.com">mario.boikov@gmail.com</a>
+</div>
+<div class='clear'></div>
+<span class='widget-item-control'>
+<span class='item-control blog-admin'>
+<a class='quickedit' href='http://www.blogger.com/rearrange?blogID=7970464356958190643&widgetType=HTML&widgetId=HTML1&action=editWidget&sectionId=sidebar' onclick='return _WidgetManager._PopupConfig(document.getElementById("HTML1"));' target='configHTML1' title='Edit'>
+<img alt='' height='18' src='http://img1.blogblog.com/img/icon18_wrench_allbkg.png' width='18'/>
+</a>
+</span>
+</span>
+<div class='clear'></div>
+</div><div class='widget Label' id='Label1'>
+<h2>Labels</h2>
+<div class='widget-content cloud-label-widget-content'>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Arduino'>Arduino</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/C'>C</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/C%2B%2B'>C++</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Conference'>Conference</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/ctypes'>ctypes</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/digikam'>digikam</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/ElementTree'>ElementTree</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Fedora'>Fedora</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/feedparser'>feedparser</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/FUSE'>FUSE</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/gmail'>gmail</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/gmonitor'>gmonitor</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/gphoto'>gphoto</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/JavaScript'>JavaScript</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/KDE'>KDE</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Kubuntu'>Kubuntu</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Linux'>Linux</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Linux%20video'>Linux video</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/N9'>N9</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Nokia'>Nokia</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/plsparser'>plsparser</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/profiling'>profiling</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/pyshoutcast'>pyshoutcast</a>
+</span>
+<span class='label-size label-size-5'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Python'>Python</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/QML'>QML</a>
+</span>
+<span class='label-size label-size-5'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Qt'>Qt</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/QtCast'>QtCast</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/QtCreator'>QtCreator</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/QtQuick'>QtQuick</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Quick'>Quick</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/QuickCast'>QuickCast</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/tvmatchen'>tvmatchen</a>
+</span>
+<span class='label-size label-size-1'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Ubuntu'>Ubuntu</a>
+</span>
+<span class='label-size label-size-3'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/Unittesting'>Unittesting</a>
+</span>
+<span class='label-size label-size-2'>
+<a dir='ltr' href='http://pysnippet.blogspot.com/search/label/WebKit'>WebKit</a>
+</span>
+<div class='clear'></div>
+<span class='widget-item-control'>
+<span class='item-control blog-admin'>
+<a class='quickedit' href='http://www.blogger.com/rearrange?blogID=7970464356958190643&widgetType=Label&widgetId=Label1&action=editWidget&sectionId=sidebar' onclick='return _WidgetManager._PopupConfig(document.getElementById("Label1"));' target='configLabel1' title='Edit'>
+<img alt='' height='18' src='http://img1.blogblog.com/img/icon18_wrench_allbkg.png' width='18'/>
+</a>
+</span>
+</span>
+<div class='clear'></div>
+</div>
+</div><div class='widget LinkList' id='LinkList1'>
+<h2>Projects</h2>
+<div class='widget-content'>
+<ul>
+<li><a href='http://www.jamify.com/'>Jamify</a></li>
+<li><a href='http://tvmatchen.blogspot.com/'>Tvmatchen for Nokia</a></li>
+<li><a href='http://github.com/mariob/gmonitor'>gmonitor</a></li>
+<li><a href='http://github.com/mariob/pyshoutcast/'>pyshoutcast</a></li>
+<li><a href='http://github.com/mariob/plsparser'>plsparser</a></li>
+<li><a href='https://launchpad.net/libusb4j'>libusb4j</a></li>
+<li><a href='https://launchpad.net/jk8055'>Vellman K8055 controller</a></li>
+</ul>
+<div class='clear'></div>
+<span class='widget-item-control'>
+<span class='item-control blog-admin'>
+<a class='quickedit' href='http://www.blogger.com/rearrange?blogID=7970464356958190643&widgetType=LinkList&widgetId=LinkList1&action=editWidget&sectionId=sidebar' onclick='return _WidgetManager._PopupConfig(document.getElementById("LinkList1"));' target='configLinkList1' title='Edit'>
+<img alt='' height='18' src='http://img1.blogblog.com/img/icon18_wrench_allbkg.png' width='18'/>
+</a>
+</span>
+</span>
+<div class='clear'></div>
+</div>
+</div><div class='widget BlogArchive' id='BlogArchive1'>
+<h2>Blog Archive</h2>
+<div class='widget-content'>
+<div id='ArchiveList'>
+<div id='BlogArchive1_ArchiveList'>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/search?updated-min=2011-01-01T00%3A00%3A00%2B01%3A00&updated-max=2012-01-01T00%3A00%3A00%2B01%3A00&max-results=11'>2011</a>
+<span class='post-count' dir='ltr'>(11)</span>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2011_10_01_archive.html'>October</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2011/10/open-links-from-text-elements-in.html'>Open links from Text-elements in QtQuick</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2011_09_01_archive.html'>September</a>
+<span class='post-count' dir='ltr'>(2)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2011/09/using-qtcreator-for-arduino-development.html'>Using QtCreator for Arduino development</a></li>
+<li><a href='http://pysnippet.blogspot.com/2011/09/system-76-linux-devices-and-better.html'>System 76: Linux Devices and Better Business Value...</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2011_08_01_archive.html'>August</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2011/08/tvmatchen-for-nokia-n9.html'>tvmatchen for Nokia N9</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2011_06_01_archive.html'>June</a>
+<span class='post-count' dir='ltr'>(2)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2011/06/nokia-n9-and-python.html'>Nokia N9 and Python</a></li>
+<li><a href='http://pysnippet.blogspot.com/2011/06/qtquick-from-bling-bling-to-blink-blink.html'>QtQuick - From Bling Bling To Blink Blink</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2011_05_01_archive.html'>May</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2011/05/i-wish-that-i-had-jessies-girl.html'>I wish that I had Jessie&#39;s girl...</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2011_04_01_archive.html'>April</a>
+<span class='post-count' dir='ltr'>(2)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2011/04/i-won-travelling-salesman-competition.html'>I won the &quot;Travelling salesman&quot; competition!</a></li>
+<li><a href='http://pysnippet.blogspot.com/2011/04/tips-kdenlive-great-video-editor.html'>Tips! Kdenlive - A great video editor</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2011_03_01_archive.html'>March</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2011/03/pyside-and-qml.html'>PySide and QML</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2011_02_01_archive.html'>February</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2011/02/guest-blog-post-at-nokia-nordic-blog.html'>Guest blog post at Nokia Nordic Blog</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/search?updated-min=2010-01-01T00%3A00%3A00%2B01%3A00&updated-max=2011-01-01T00%3A00%3A00%2B01%3A00&max-results=20'>2010</a>
+<span class='post-count' dir='ltr'>(20)</span>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2010_11_01_archive.html'>November</a>
+<span class='post-count' dir='ltr'>(3)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2010/11/nokia-certified-qt-developer.html'>Nokia Certified Qt Developer</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/11/nokia-rules.html'>Nokia Rules!</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/11/getting-interactive-with-pyqt.html'>Getting Interactive With PyQt</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2010_09_01_archive.html'>September</a>
+<span class='post-count' dir='ltr'>(4)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2010/09/qt-devdays-2010.html'>Qt DevDays 2010</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/09/pyqt-and-signal-overloads.html'>PyQt and Signal overloads</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/09/icecastradio-qt-widgetqt-quick-example.html'>IcecastRadio - Qt widget/Qt Quick example Icecast ...</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/09/python-koans-great-way-to-learn-python.html'>Python Koans - A Great Way to Learn Python!</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2010_08_01_archive.html'>August</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2010/08/my-python-fix.html'>My python fix</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2010_06_01_archive.html'>June</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2010/06/qsignalmapper-at-your-service.html'>QSignalMapper - at your service</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2010_05_01_archive.html'>May</a>
+<span class='post-count' dir='ltr'>(2)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2010/05/abcs-abstract-base-classes.html'>ABCs - Abstract Base Classes</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/05/network-manager-problems-on-kubuntu.html'>Network manager problems on Kubuntu 10.04</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2010_04_01_archive.html'>April</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2010/04/unit-testing-with-qt.html'>Unit testing with Qt</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2010_03_01_archive.html'>March</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2010/03/ternary-operation.html'>Ternary operation</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2010_02_01_archive.html'>February</a>
+<span class='post-count' dir='ltr'>(1)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2010/02/qtabwidget-hiding-bar.html'>QTabWidget - Hiding the bar</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2010_01_01_archive.html'>January</a>
+<span class='post-count' dir='ltr'>(6)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2010/01/named-tuple.html'>Named tuple</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/01/more-fun-with-qwebkit.html'>More fun with QWebKit</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/01/calling-python-from-javascript-in-pyqts.html'>Calling Python from JavaScript in PyQt&#39;s QWebkit</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/01/new-style-pyqt-signals-and-slots.html'>New-style PyQt Signals and Slots</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/01/digikam-light-table.html'>Digikam  - Light table</a></li>
+<li><a href='http://pysnippet.blogspot.com/2010/01/lets-timeit.html'>Let&#39;s timeit!</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate expanded'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy toggle-open'>&#9660;&#160;</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/search?updated-min=2009-01-01T00%3A00%3A00%2B01%3A00&updated-max=2010-01-01T00%3A00%3A00%2B01%3A00&max-results=20'>2009</a>
+<span class='post-count' dir='ltr'>(20)</span>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2009_12_01_archive.html'>December</a>
+<span class='post-count' dir='ltr'>(5)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2009/12/when-ctypes-comes-to-rescue.html'>When ctypes comes to the rescue</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/12/hello-planet-python.html'>Hello Planet Python!</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/12/tryforwhile-else-else-what.html'>try/for/while else... else what?</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/12/profiling-your-python-code.html'>Profiling your Python code</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/12/fuse-filesystem-in-userspace-part-3.html'>FUSE - Filesystem in Userspace part 3 (final)</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate expanded'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy toggle-open'>&#9660;&#160;</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2009_11_01_archive.html'>November</a>
+<span class='post-count' dir='ltr'>(5)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2009/11/fedora-12.html'>Fedora 12</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/11/fuse-filesystem-in-userspace-part-2.html'>FUSE - Filesystem in Userspace part 2</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/11/fuse-filesystem-in-userspace-part-1.html'>FUSE - Filesystem in Userspace part 1</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/11/gmonitor.html'>GMonitor</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/11/kubuntu-910.html'>Kubuntu 9.10</a></li>
+</ul>
+</li>
+</ul>
+<ul class='hierarchy'>
+<li class='archivedate collapsed'>
+<a class='toggle' href='javascript:void(0)'>
+<span class='zippy'>
+
+          &#9658;&#160;
+        
+</span>
+</a>
+<a class='post-count-link' href='http://pysnippet.blogspot.com/2009_10_01_archive.html'>October</a>
+<span class='post-count' dir='ltr'>(10)</span>
+<ul class='posts'>
+<li><a href='http://pysnippet.blogspot.com/2009/10/diy-google-mail-notifier.html'>DIY: Google Mail Notifier</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/10/elce-2009-presentations.html'>ELCE 2009 presentations</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/10/pyshoutcast-v071.html'>pyshoutcast v0.7.1</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/10/python-have-great-number-of-cool.html'>&#39;with&#39; statement</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/10/back-home-from-elce-2009.html'>Back home from ELCE 2009</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/10/im-going-to-elce-2009.html'>I&#39;m going to ELCE 2009</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/10/kde-hello-world.html'>KDE Hello World</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/10/python-and-unit-testing.html'>Python and unit testing</a></li>
+<li><a href='http://pysnippet.blogspot.com/2009/10/file-like-objects.html'>File-like objects</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class='clear'></div>
+<span class='widget-item-control'>
+<span class='item-control blog-admin'>
+<a class='quickedit' href='http://www.blogger.com/rearrange?blogID=7970464356958190643&widgetType=BlogArchive&widgetId=BlogArchive1&action=editWidget&sectionId=sidebar' onclick='return _WidgetManager._PopupConfig(document.getElementById("BlogArchive1"));' target='configBlogArchive1' title='Edit'>
+<img alt='' height='18' src='http://img1.blogblog.com/img/icon18_wrench_allbkg.png' width='18'/>
+</a>
+</span>
+</span>
+<div class='clear'></div>
+</div>
+</div></div>
+</div>
+<!-- spacer for skins that want sidebar and main to be the same height-->
+<div class='clear'>&#160;</div>
+</div>
+<!-- end content-wrapper -->
+</div></div>
+<!-- end outer-wrapper -->
+<div id='footer-wrapper'>
+<div class='center-wrapper'>
+<div id='footer'>
+<div class='left'> (c) <a href='http://pysnippet.blogspot.com/'>PySnippet</a>. Some Rights Reserved.</div>
+<div class='right'>
+<a href='http://www.deluxetemplates.net/'>Blogger Templates</a> created by <a href='http://www.deluxetemplates.net/' rel='nofollow'>Deluxe Templates</a>. CSS by <a href='http://arcsin.se/'>Arcsin</a>. <a href='http://www.bloggershowcase.net/'>Blogger Showcase</a>
+</div>
+<div class='clearer'></div>
+</div>
+</div>
+</div>
+<script language='javascript'>  
+dp.SyntaxHighlighter.BloggerMode();  
+dp.SyntaxHighlighter.HighlightAll('code');  
+</script>
+<script type='text/javascript'>
+var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+</script>
+<script type='text/javascript'>
+try {
+var pageTracker = _gat._getTracker("UA-10008808-2");
+pageTracker._trackPageview();
+} catch(err) {}</script>
+<script type="text/javascript">
+if (window.jstiming) window.jstiming.load.tick('widgetJsBefore');
+</script><script type="text/javascript" src="http://www.blogger.com/static/v1/widgets/2446270697-widgets.js"></script>
+<script type='text/javascript'>
+if (typeof(BLOG_attachCsiOnload) != 'undefined' && BLOG_attachCsiOnload != null) { window['blogger_templates_experiment_id'] = "templatesV1";window['blogger_blog_id'] = '7970464356958190643';BLOG_attachCsiOnload('item_'); }_WidgetManager._Init('http://www.blogger.com/rearrange?blogID=7970464356958190643','http://pysnippet.blogspot.com/2009/11/fuse-filesystem-in-userspace-part-1.html','7970464356958190643');
+_WidgetManager._SetPageActionUrl('http://www.blogger.com/display?blogID=7970464356958190643','APq4FmCRGnDNJkLev01Dg2zlZ6uT7raajFOoyYsAju1cAb_UiVKQRnMaVAC6jSLw-Eh43vjBBw4z6onJePs6YVcFgB7i9XuXQMbd3J_B10-_BQ5W_RA1iIE=','AOuZoY7w8CNf2oRgghT98OQk-08RwyIfeA:1320826919349');
+_WidgetManager._SetDataContext([{'name': 'blog', 'data': {'title': 'PySnippet', 'pageType': 'item', 'url': 'http://pysnippet.blogspot.com/2009/11/fuse-filesystem-in-userspace-part-1.html', 'canonicalUrl': 'http://pysnippet.blogspot.com/2009/11/fuse-filesystem-in-userspace-part-1.html', 'homepageUrl': 'http://pysnippet.blogspot.com/', 'blogspotFaviconUrl': 'http://pysnippet.blogspot.com/favicon.ico', 'enabledCommentProfileImages': true, 'searchLabel': '', 'searchQuery': '', 'pageName': 'FUSE - Filesystem in Userspace part 1', 'pageTitle': 'PySnippet: FUSE - Filesystem in Userspace part 1', 'encoding': 'UTF-8', 'locale': 'en-US', 'isPrivate': false, 'isMobile': false, 'mobileClass': '', 'languageDirection': 'ltr', 'feedLinks': '\74link rel\75\42alternate\42 type\75\42application/atom+xml\42 title\75\42PySnippet - Atom\42 href\75\42http://pysnippet.blogspot.com/feeds/posts/default\42 /\76\n\74link rel\75\42alternate\42 type\75\42application/rss+xml\42 title\75\42PySnippet - RSS\42 href\75\42http://pysnippet.blogspot.com/feeds/posts/default?alt\75rss\42 /\76\n\74link rel\75\42service.post\42 type\75\42application/atom+xml\42 title\75\42PySnippet - Atom\42 href\75\42http://www.blogger.com/feeds/7970464356958190643/posts/default\42 /\76\n\74link rel\75\42EditURI\42 type\75\42application/rsd+xml\42 title\75\42RSD\42 href\75\42http://www.blogger.com/rsd.g?blogID\0757970464356958190643\42 /\76\n\74link rel\75\42alternate\42 type\75\42application/atom+xml\42 title\75\42PySnippet - Atom\42 href\75\42http://pysnippet.blogspot.com/feeds/138020025185706347/comments/default\42 /\76\n', 'meTag': '', 'openIdOpTag': '', 'imageSrcTag': '', 'latencyHeadScript': '\74script type\75\42text/javascript\42\76(function() { var a\75window;function c(b){this.t\75{};this.tick\75function(b,i,d){d\75d!\75void 0?d:(new Date).getTime();this.t[b]\75[d,i]};this.tick(\42start\42,null,b)}var e\75new c;a.jstiming\75{Timer:c,load:e};try{var g\75null;a.chrome\46\46a.chrome.csi\46\46(g\75Math.floor(a.chrome.csi().pageT));g\75\75null\46\46a.gtbExternal\46\46(g\75a.gtbExternal.pageT());g\75\75null\46\46a.external\46\46(g\75a.external.pageT);g\46\46(a.jstiming.pt\75g)}catch(h){};a.tickAboveFold\75function(b){var f\0750;if(b.offsetParent){do f+\75b.offsetTop;while(b\75b.offsetParent)}b\75f;b\74\075750\46\46a.jstiming.load.tick(\42aft\42)};var j\75false;function k(){j||(j\75true,a.jstiming.load.tick(\42firstScrollTime\42))}a.addEventListener?a.addEventListener(\42scroll\42,k,false):a.attachEvent(\42onscroll\42,k);\n })();\74/script\076', 'mobileHeadScript': '', 'analyticsAccountNumber': ''}}]);
+_WidgetManager._RegisterWidget('_HTMLView', new _WidgetInfo('HTML1', 'sidebar', null, document.getElementById('HTML1'), {}, 'displayModeFull'));
+_WidgetManager._RegisterWidget('_LabelView', new _WidgetInfo('Label1', 'sidebar', null, document.getElementById('Label1'), {}, 'displayModeFull'));
+_WidgetManager._RegisterWidget('_LinkListView', new _WidgetInfo('LinkList1', 'sidebar', null, document.getElementById('LinkList1'), {}, 'displayModeFull'));
+_WidgetManager._RegisterWidget('_BlogArchiveView', new _WidgetInfo('BlogArchive1', 'sidebar', null, document.getElementById('BlogArchive1'), {'languageDirection': 'ltr'}, 'displayModeFull'));
+_WidgetManager._RegisterWidget('_HeaderView', new _WidgetInfo('Header1', 'header'));
+_WidgetManager._RegisterWidget('_NavbarView', new _WidgetInfo('Navbar1', 'navbar'));
+_WidgetManager._RegisterWidget('_BlogView', new _WidgetInfo('Blog1', 'main', null, document.getElementById('Blog1'), {'cmtInteractionsEnabled': false, 'showBacklinks': true, 'postId': '138020025185706347', 'lightboxEnabled': true, 'lightboxModuleUrl': 'http://www.blogger.com/static/v1/jsbin/4215911123-lbx.js', 'lightboxCssUrl': 'http://www.blogger.com/static/v1/v-css/1683166225-lightbox_bundle.css'}, 'displayModeFull'));
+</script>
+</body>
+</html>
