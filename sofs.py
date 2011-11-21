@@ -67,12 +67,28 @@ class INodeBlock( SoftBlock ):
     def getFilename(self):
         return self.filename
 
-    def readFile():
+    def readFile(self, path, readlen, offset):
         block_number= (self.size / self.BLOCK_SIZE) +1
         assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
         file_blocks= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
-        #TODO
-
+        
+        if offset + readlen = self.size:
+            raise IOError()
+        
+        block_to_read = offset/self.BLOCK_SIZE                 #index of the block to be read
+        block_offset = offset%self.BLOCK_SIZE
+        
+        curr_block = file_blocks[block_to_read] #current block to be read
+        
+        result = []
+        while(readlen > 0):
+            block_bytes = self.BLOCK_SIZE - block_offset
+            bytes_to_read = min( block_bytes, readlen)
+            result.append(curr_block.read_bytes(block_offset, bytes_to_read))
+            readlen -= bytes_to_read
+        
+        return "".join(result)
+        
 class FileDescriptor:
     def __init__(self, inode_block, mode):
         self.allow_read, self.allow_write= False, False
@@ -85,6 +101,7 @@ class FileDescriptor:
         if mode & os.APPEND == os.APPEND:
             #self.seek_position= end of file...
             pass
+
     
         
         
