@@ -44,7 +44,9 @@ class ZeroBlock( SofsBlock ):
         SofsBlock.__init__(self, sofs, 0) #block number 0
         magic_1, magic_2, block_size, block_count, free_list_head= map(self.readInt,range(5))
         if magic_1!=self.MAGIC_1 or magic_2!=self.MAGIC_2:
-            raise IOError("Bad FS magic number")
+            e= IOError("Bad FS magic number")
+            e.errno= errno.EINVAL
+            raise e
         assert block_size==self.BLOCK_SIZE
         self.block_count= block_count   #total FS blocks
         self.free_list_head= free_list_head  #first free block
@@ -57,9 +59,11 @@ class INodeBlock( SofsBlock ):
     FILE_BLOCKS_INDEX= 18
     def __init__(self, sofs, index):
         SofsBlock.__init__(self, sofs, index)
-        magic, self.readInt(0)
-        if magic==-MAGIC:
-            raise IOException("Bad INodeBlock magic")
+        magic= self.readInt(0)
+        if magic!=self.MAGIC:
+            e= OSError("Bad INodeBlock magic")
+            e.errno= errno.EINVAL
+            raise e
         self.filename=  self._readBytes( 1*INT_SIZE, 64 )
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
@@ -73,7 +77,9 @@ class INodeBlock( SofsBlock ):
         file_blocks= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
         
         if offset + readlen >= self.size:
-            raise IOError()
+            e= OSError("Try to read outside file")
+            e.errno= errno.EINVAL
+            raise e
         
         block_to_read = offset/self.BLOCK_SIZE                 #index of the block to be read
         block_offset = offset%self.BLOCK_SIZE
@@ -165,7 +171,9 @@ class SoFS(fuse.Fuse):
         try:
             inode= self.format.find(path)
         except CantFindInodeFromPath:
-            raise IOError()
+            e= OSError("Bad INodeBlock magic")
+            e.errno= errno.EINVAL
+            raise e
         return st
 
 if __name__ == '__main__':
