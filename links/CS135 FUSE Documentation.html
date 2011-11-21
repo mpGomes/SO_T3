@@ -1,0 +1,822 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+    "http://www.w3.org/TR/html4/strict.dtd">
+<HTML LANG="en-US">
+<HEAD>
+    <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=ISO-8859-1">
+    <BASE HREF="http://www.cs.hmc.edu/~geoff/classes/hmc.cs135.201109/homework/fuse/fuse_doc.html">
+    <TITLE>
+    CS135 FUSE Documentation
+    </TITLE>
+</HEAD>
+
+<BODY>
+<H1>CS135 FUSE Documentation</H1>
+
+<P>
+There is very little FUSE documentation on the <A
+HREF="http://fuse.sourceforge.net">FUSE Web site.</A> A bit more,
+which is unfortunately very outdated, is available from <A
+HREF="http://www.ibm.com/developerworks/linux/library/l-fuse/">an IBM
+article from 2006</A>.  If you come across anything more complete or
+more current, I'd appreciate hearing about it so I can add a link to
+it from this site.
+
+<P>
+<STRONG>Note:</STRONG> Be sure to read the
+<A HREF="#gotchas">Gotchas</A> list before starting your code, and
+refer back to it frequently when you run into troubles.
+
+<H2> Writing a FUSE Client</H2>
+
+The best way to write a fuse client is to start with an example or an
+existing client; I recommend <CODE>fusexmp.c</CODE> or
+<CODE>fusexmp_fh.c</CODE> (the latter implements file handles, so it's
+a better choice if you're developing a complex filesystem).  The
+existing clients provide a scaffolding for you to work from, but
+you'll still need to understand <A HREF="#function-purposes">what all
+the functions are supposed to do</A>, and also how to <A
+HREF="#compiling">compile</A> and <A HREF="#running">run</A> your
+client.  That's what this Web page is for.
+
+<H3>Unix Manual Pages</H3>
+
+<P>
+May of the FUSE functions are closely related to Unix system calls.
+Rather than repeating the full specification (especially error
+conditions) here, it's better for you to refer to the Unix man page.
+You can do this on any Unix machine with the "man" command.  By
+convention, if I refer you to the "stat(2) system call", that means
+you should type "man 2 stat" to get the necessary information.
+
+<H3>FUSE File Handles</H3>
+
+<P>
+Many FUSE functions offer two ways to identify the file being operated
+upon.  The first, which is always available, is the
+"<CODE>path</CODE>" argument, which is the full pathname (relative to
+the filesystem root) of the file in question.  If you choose to do so,
+all your functions can use that argument to locate a file.
+
+<P>
+However, pathname lookup is often a very expensive operation, so FUSE
+sometimes provides you another option: a "file handle" in the
+"<CODE>fuse_file_info</CODE>" structure.  The file handle is stored in
+the "<CODE>fh</CODE>" element of that structure, which is an unsigned
+64-bit integer (<CODE>uint64_t</CODE>) uninterpreted by FUSE.  If you
+choose to use it, you should set that field in your
+<CODE><A HREF="#open">open</A></CODE>,
+<CODE><A HREF="#create">create</A></CODE>, and
+<CODE><A HREF="opendir">opendir</A></CODE> functions; other
+functions can then use it.  In many FUSE implementations, the file
+handle is actually a pointer to a useful data structure, which is
+typecast to an integer to keep the compiler happy.  But you can make
+it an index into an array, a hash key, or pretty much anything else
+you choose.
+
+<H3>Getting FUSE Context</H3>
+
+<P>
+For many operations, it is useful to have a relevant "context" in
+which to execute them.  For historical reasons, the context isn't
+passed as an argument; instead you must call
+<CODE>fuse_get_context</CODE> with no argument, which returns a
+pointer to a <CODE>struct fuse_context</CODE> with the following
+usable elements:
+
+<DL>
+    <DT> <CODE>uid</CODE>
+	<DD> The (numeric) user ID of the process invoking the operation.
+    <DT> <CODE>gid</CODE>
+	<DD> The (numeric) group ID of the process invoking the operation.
+    <DT> <CODE>pid</CODE>
+	<DD> The thread (process) ID of the process invoking the operation.
+    <DT> <CODE>private_data</CODE>
+	<DD> A pointer (<CODE>void*</CODE>) to the private data
+	    returned by the <CODE><A HREF="#init">init</A></CODE> function.
+    <DT> <CODE>umask</CODE>
+	<DD> The <CODE>umask</CODE> of the process invoking the operation.
+</DL>
+
+<H3><A NAME="function-purposes">FUSE Functions</A></H3>
+
+<P>
+The following is a brief description of all the API functions you can
+create in a FUSE filesystem.  Note that many are unnecessary,
+especially if you are implementing a partial filesystem like the one
+in this assignment.  However, I have tried to provide full
+documentation here.  Unless otherwise specified, all functions return
+an integer 0 or a positive number for
+success, or a negative value selected from <CODE>errno.h</CODE> if
+there is an error.
+
+<P>
+All of your functions should be named with a prefix that is closely
+related to your filesystem name.  For example, in an SSH filesystem
+you should use <CODE>ssh_getattr</CODE>, <CODE>ssh_read</CODE>, etc.
+
+<DL>
+    <DT> <CODE>void* <A NAME="init">init</A>(struct fuse_conn_info *conn)</CODE>
+	<DD> Initialize the filesystem.  This function can often be
+	    left unimplemented, but it can be a handy way to perform
+	    one-time setup such as allocating variable-sized data
+	    structures or initializing a new filesystem.
+	    The
+	    <CODE>fuse_conn_info</CODE> structure gives information
+	    about what features are supported by FUSE, and can be used
+	    to request certain capabilities (see
+	    <A HREF="#init-args">below</A> for more information).
+	    The return value of this function is available to all file
+	    operations in the <CODE>private_data</CODE> field of
+	    <CODE><A NAME="fuse_conntext">fuse_context</A></CODE>.  It
+	    is also passed as a parameter to the destroy() method.
+	    (Note: see the warning under <A HREF="#other-options">Other
+	    Options</A> below, regarding relative pathnames.)
+    <DT> <CODE>void <A NAME="destroy">destroy</A>(void* private_data)</CODE>
+	<DD> Called when the filesystem exits.  The
+	    <CODE>private_data</CODE> comes from the return value of
+	    <CODE>init</CODE>.
+    <DT> <CODE><A NAME="getattr">getattr</A>(const char* path, struct
+	    stat* stbuf)</CODE>
+	<DD> Return file attributes.  The "stat" structure is
+	    described in detail in the stat(2) manual page.  For the
+	    given pathname, this should fill in the elements of the
+	    "stat" structure.  If a field is meaningless or
+	    semi-meaningless (e.g., <CODE>st_ino</CODE>) then it
+	    should be set to 0 or given a "reasonable" value.  This
+	    call is pretty much required for a usable filesystem.
+    <DT> <CODE><A NAME="fgetattr">fgetattr</A>(const char* path, struct
+	    stat* stbuf)</CODE>
+	<DD> As <CODE>getattr</CODE>, but called when fgetattr(2) is
+	    invoked by the user program.
+    <DT> <CODE><A NAME="access">access</A>(const char* path, mask)</CODE>
+	<DD> This is the same as the access(2) system call.  It returns
+	    -ENOENT if the <CODE>path</CODE> doesn't exist, -EACCESS
+	    if the requested permission isn't available, or 0 for
+	    success.  Note that it can be called on files,
+	    directories, or any other object that appears in the
+	    filesystem.  This call is not required but is highly
+	    recommended.
+    <DT> <CODE><A NAME="readlink">readlink</A>(const char* path, char*
+	    buf, size_t size)</CODE>
+	<DD> If <CODE>path</CODE> is a symbolic link, fill
+	    <CODE>buf</CODE> with its target, up to
+	    <CODE>size</CODE>.  See readlink(2) for how to handle a
+	    too-small buffer and for error codes.  Not required if you
+	    don't support symbolic links.
+	    <STRONG>NOTE:</STRONG> Symbolic-link support requires only
+	    <CODE>readlink</CODE> and <CODE>symlink</CODE>.  FUSE
+	    itself will take care of tracking symbolic links in paths,
+	    so your path-evaluation code doesn't need to worry about it.
+    <DT> <CODE><A NAME="opendir">opendir</A>(const char* path, struct
+	    fuse_file_info* fi)</CODE>
+	<DD> Open a directory for reading.
+    <DT> <CODE><A NAME="readdir">readdir</A>(const char* path, void*
+	    buf, fuse_fill_dir_t filler, off_t offset, struct
+	    fuse_file_info* fi)</CODE>
+	<DD> Return one or more directory entries (<CODE>struct
+	    dirent</CODE>) to the caller.  This is one of the most
+	    complex FUSE functions.  It is related to, but not
+	    identical to, the readdir(2) and getdents(2) system calls,
+	    and the readdir(3) library function.  Because of its
+	    complexity, it is described separately <A
+	    HREF="#readdir-details">below</A>.  Required for essentially any
+	    filesystem, since it's what makes
+	    <CODE>ls</CODE> and a whole bunch of other things work.
+    <DT> <CODE><A NAME="mknod">mknod</A>(const char* path, mode_t
+	    mode, dev_t rdev)</CODE>
+	<DD> Make a special (device) file, FIFO, or socket.  See
+	    mknod(2) for details.  This function is rarely needed,
+	    since it's uncommon to make these objects inside
+	    special-purpose filesystems.
+    <DT> <CODE><A NAME="mkdir">mkdir</A>(const char* path, mode_t mode)</CODE>
+	<DD> Create a directory with the given name.  The directory
+	    permissions are encoded in <CODE>mode</CODE>.  See
+	    mkdir(2) for details.  This function is needed for any
+	    reasonable read/write filesystem.
+    <DT> <CODE><A NAME="unlink">unlink</A>(const char* path)</CODE>
+	<DD> Remove (delete) the given file, symbolic link, hard link,
+	    or special node.  Note that if you support hard links,
+	    <CODE>unlink</CODE> only deletes the data when the
+	    <EM>last</EM> hard link is removed.  See unlink(2) for
+	    details.
+    <DT> <CODE><A NAME="rmdir">rmdir</A>(const char* path)</CODE>
+	<DD> Remove the given directory.  This should succeed only if
+	    the directory is empty (except for "." and "..").  See
+	    rmdir(2) for details.
+    <DT> <CODE><A NAME="symlink">symlink</A>(const char* to, const
+	    char* from)</CODE>
+	<DD> Create a symbolic link named "<CODE>from</CODE>" which,
+	    when evaluated, will lead to "<CODE>to</CODE>".  Not
+	    required if you don't support symbolic links.
+	    <STRONG>NOTE:</STRONG> Symbolic-link support requires only
+	    <CODE>readlink</CODE> and <CODE>symlink</CODE>.  FUSE
+	    itself will take care of tracking symbolic links in paths,
+	    so your path-evaluation code doesn't need to worry about it.
+    <DT> <CODE><A NAME="rename">rename</A>(const char* from, const
+	    char* to)</CODE>
+	<DD> Rename the file, directory, or other object
+	    "<CODE>from</CODE>" to the target "<CODE>to</CODE>".  Note
+	    that the source and target don't have to be in the same
+	    directory, so it may be necessary to move the source to an
+	    entirely new directory.  See rename(2) for full details.
+    <DT> <CODE><A NAME="link">link</A>(const char* from, const char*
+	    to)</CODE>
+	<DD> Create a hard link between "<CODE>from</CODE>" and
+	    "<CODE>to</CODE>".  Hard links aren't required for a
+	    working filesystem, and many successful filesystems don't
+	    support them.  If you <EM>do</EM> implement hard links, be
+	    aware that they have an effect on how <CODE><A
+	    HREF="#unlink">unlink</A></CODE> works.  See
+	    <CODE>link(2)</CODE> for details.
+    <DT> <CODE><A NAME="chmod">chmod</A>(const char* path, mode_t mode)</CODE>
+	<DD> Change the mode (permissions) of the given object to the
+	    given new permissions.  Only the permissions bits of
+	    <CODE>mode</CODE> should be examined.  See chmod(2) for
+	    details.
+    <DT> <CODE><A NAME="chown">chown</A>(const char* path, uid_t uid,
+	    gid_t gid</CODE>
+	<DD> Change the given object's owner and group to the provided
+	    values.  See chown(2) for details.  <STRONG>NOTE:</STRONG>
+	    FUSE doesn't deal particularly well with file ownership,
+	    since it usually runs as an unprivileged user and this call
+	    is restricted to the superuser.  It's often easier to
+	    pretend that all files are owned by the user who mounted
+	    the filesystem, and to skip implementing this function.
+    <DT> <CODE><A NAME="truncate">truncate</A>(const char* path, off_t size)</CODE>
+	<DD> Truncate or extend the given file so that it is precisely
+	    <CODE>size</CODE> bytes long.  See truncate(2) for
+	    details.  This call is required for read/write
+	    filesystems, because recreating a file will first truncate
+	    it.
+    <DT> <CODE><A NAME="ftruncate">ftruncate</A>(const char* path,
+	    off_t size)</CODE>
+	<DD> As <CODE>truncate</CODE>, but called when ftruncate(2) is
+	    called by the user program.
+    <DT> <CODE><A NAME="utimens">utimens</A>(const char* path, const
+	    struct timespec ts[2]</CODE>
+	<DD> Update the last access time of the given object from
+	    ts[0] and the last modification time from ts[1].  Both
+	    time specifications are given to nanosecond resolution,
+	    but your filesystem doesn't have to be that precise; see
+	    utimensat(2) for full details.  Note that the time
+	    specifications are allowed to have certain special values;
+	    however, I don't know if FUSE functions have to support
+	    them.  This function isn't necessary but is nice to have
+	    in a fully functional filesystem.
+    <DT> <CODE><A NAME="open">open</A>(const char* path, struct
+	    fuse_file_info* fi)</CODE>
+	<DD> Open a file.  If you aren't using file handles, this
+	    function should just check for existence and permissions
+	    and return either success or an error code.  If you use
+	    file handles, you should also allocate any necessary
+	    structures and set <CODE>fi-&gt;fh</CODE>.  In addition,
+	    <CODE>fi</CODE> has some other fields that an advanced
+	    filesystem might find useful; see the structure definition in
+	    <CODE>fuse_common.h</CODE> for very brief commentary.
+    <DT> <CODE><A NAME="read">read</A>(const char* path, char *buf,
+	    size_t size, off_t offset, struct fuse_file_info* fi)</CODE>
+	<DD> Read <CODE>size</CODE> bytes from the given file into the
+	    buffer <CODE>buf</CODE>, beginning <CODE>offset</CODE>
+	    bytes into the file.  See read(2) for full details.
+	    Returns the number of bytes transferred, or 0 if
+	    <CODE>offset</CODE> was at or beyond the end of the file.
+	    Required for any sensible filesystem.
+    <DT> <CODE><A NAME="write">write</A>(const char* path, char *buf,
+	    size_t size, off_t offset, struct fuse_file_info* fi)</CODE>
+	<DD> As for <CODE><A HREF="#read">read</A></CODE> above,
+	    except that it can't return 0.
+    <DT> <CODE><A NAME="statfs">statfs</A>(const char* path, struct
+	    statvfs* stbuf</CODE>
+	<DD> Return statistics about the filesystem.  See statvfs(2)
+	    for a description of the structure contents.  Usually, you
+	    can ignore the <CODE>path</CODE>.  Not required, but handy
+	    for read/write filesystems since this is how programs like
+	    <CODE>df</CODE> determine the free space.
+    <DT> <CODE><A NAME="release">release</A>(const char* path, struct
+	    fuse_file_info *fi)</CODE>
+	<DD> This is the only FUSE function that doesn't have a
+	    directly corresponding system call, although close(2)
+	    is related.  <CODE>Release</CODE> is called when FUSE is
+	    completely done with a file; at that point, you can free
+	    up any temporarily allocated data structures.  The IBM
+	    document claims that there is exactly one
+	    <CODE>release</CODE> per <CODE>open</CODE>, but I don't
+	    know if that is true.
+    <DT> <CODE><A NAME="releasedir">releasedir</A>(const char* path,
+	    struct fuse_file_info *fi)</CODE>
+	<DD> This is like <CODE>release</CODE>, except for directories.
+    <DT> <CODE><A NAME="fsync">fsync</A>(const char* path, int
+	    isdatasync, struct fuse_file_info* fi)</CODE>
+	<DD> Flush any dirty information about the file to disk.  If
+	    <CODE>isdatasync</CODE> is nonzero, only data, not
+	    metadata, needs to be flushed.  When this call returns,
+	    all file data should be on stable storage.  Many
+	    filesystems leave this call unimplemented, although
+	    technically that's a Bad Thing since it risks losing data.
+	    If you store your filesystem inside a plain file on
+	    another filesystem, you can implement this by calling
+	    fsync(2) on that file, which will flush too much data
+	    (slowing performance) but achieve the desired guarantee.
+    <DT> <CODE><A NAME="fsyncdir">fsyncdir</A>(const char* path, int
+	    isdatasync, struct fuse_file_info* fi)</CODE>
+	<DD> Like <CODE>fsync</CODE>, but for directories.
+    <DT> <CODE><A NAME="flush">flush</A>(const char* path, struct
+	    fuse_file_info* fi)</CODE>
+	<DD> Called on each close so that the filesystem has a chance
+	    to report delayed errors.  <STRONG>Important:</STRONG>
+	    there may be more than one <CODE>flush</CODE> call for
+	    each <CODE>open</CODE>.  <STRONG>Note:</STRONG> There is
+	    no guarantee that <CODE>flush</CODE> will ever be called
+	    at all!
+    <DT> <CODE><A NAME="lock">lock</A>(const char* path, struct
+	    fuse_file_info* fi, int cmd, struct flock* locks)</CODE>
+	<DD> Perform a POSIX file-locking operation.  See details <A
+	    HREF="#locking-details">below.</A>
+    <DT> <CODE><A NAME="bmap">bmap</A>(const char* path, size_t blocksize,
+	    uint64_t* blockno)</CODE>
+	<DD> This function is similar to bmap(9).  If the filesystem
+	    is backed by a block device, it converts
+	    <CODE>blockno</CODE> from a file-relative block number to
+	    a device-relative block.  It isn't entirely clear how the
+	    <CODE>blocksize</CODE> parameter is intended to be used.
+    <DT> <CODE><A NAME="setxattr">setxattr</A>(const char* path, const
+	    char* name, const char* value, size_t size, int flags)</CODE>
+	<DD> Set an extended attribute.  See setxattr(2).  This should
+	    be implemented only if <CODE>HAVE_SETXATTR</CODE> is true.
+    <DT> <CODE><A NAME="getxattr">getxattr</A>(const char* path, const
+	    char* name, char* value, size_t size)</CODE>
+	<DD> Read an extended attribute.  See getxattr(2).  This should
+	    be implemented only if <CODE>HAVE_SETXATTR</CODE> is true.
+    <DT> <CODE><A NAME="listxattr">listxattr</A>(const char* path,
+	    const char* list, size_t size)</CODE>
+	<DD> List the names of all extended attributes.  See
+	    listxattr(2).  This should be implemented only if
+	    <CODE>HAVE_SETXATTR</CODE> is true.
+    <DT> <CODE><A NAME="ioctl">ioctl</A>(const char* path, int cmd,
+	    void* arg, struct fuse_file_info* fi, unsigned int flags,
+	    void* data</CODE>
+	<DD> Support the ioctl(2) system call.  As such, almost
+	    everything is up to the filesystem.  On a 64-bit machine,
+	    <CODE>FUSE_IOCTL_COMPAT</CODE> will be set for 32-bit ioctls.
+	    The size and direction of data is determined by
+	    <CODE>_IOC_*()</CODE> decoding of <CODE>cmd</CODE>.  For
+	    <CODE>_IOC_NONE</CODE>, <CODE>data</CODE> will be
+	    <CODE>NULL</CODE>; for <CODE>_IOC_WRITE</CODE>
+	    <CODE>data</CODE> is being written by the user; for
+	    <CODE>_IOC_READ</CODE> it is being read, and if both are
+	    set the data is bidirectional.  In all non-NULL cases, the
+	    area is <CODE>_IOC_SIZE(cmd)</CODE> bytes in size.
+    <DT> <CODE><A NAME="poll">poll</A>(const char* path, struct
+	    fuse_file_info* fi, struct fuse_pollhandle* ph, unsigned*
+	    reventsp);</CODE>
+	<DD> Poll for I/O readiness.  If <CODE>ph</CODE> is non-NULL,
+	    when the filesystem is ready for I/O it should call
+	    <CODE>fuse_notify_poll</CODE> (possibly asynchronously)
+	    with the specified <CODE>ph</CODE>; this will clear all
+	    pending <CODE>poll</CODE>s.  The callee is responsible for
+	    destroying <CODE>ph</CODE> with
+	    <CODE>fuse_pollhandle_destroy()</CODE> when
+	    <CODE>ph</CODE> is no longer needed.
+</DL>
+
+<H4><A NAME="init-args">Init Function</A></H4>
+
+<P>
+The initialization function accepts a <CODE>fuse_conn_info</CODE>
+structure, which can be used to investigate and control the system's
+capabilities.  The components of this structure are:
+<DL>
+    <DT> <CODE>proto_major</CODE> and <CODE>proto_minor</CODE>
+	<DD> Major and minor versions of the FUSE protocol
+	    (read-only).
+    <DT> <CODE>async_read</CODE>
+	<DD> On entry, this is nonzero if asynchronous
+	    reads are supported.  The initialization
+	    function can modify this as desired.  Note
+	    that this field is duplicated by the
+	    <CODE>FUSE_CAP_ASYNC_READ</CODE> flag;
+	    asynchronous reads are controlled by the
+	    logical OR of the field and the flag.  (Yes,
+	    this is a silly hangover from the past.)
+    <DT> <CODE>max_write</CODE>
+	<DD> The maximum size of a write buffer.  This can be modified
+	    by the init function.  If it is set to less than 4096, it
+	    is increased to that value.
+    <DT> <CODE>max_readahead</CODE>
+	<DD> The maximum readahead size.  This can be modified by the
+	    init function.
+    <DT> <CODE>capable</CODE>
+	<DD> The capabilities supported by the FUSE kernel module,
+	    encoded as bit flags (read-only).
+    <DT> <CODE>want</CODE>
+	<DD> The capabilities desired by the FUSE client, encoded as
+	    bit flags.
+</DL>
+
+<P>
+The capabilities that can be requested are:
+<DL>
+    <DT> <CODE>FUSE_CAP_ASYNC_READ</CODE>
+	<DD> Use asynchronous reads (default).  To disable this
+	    option, the client must clear both this capability (in the
+	    <CODE>want</CODE> flags) and the <CODE>async_read</CODE>
+	    field.  If synchronous reads are chosen, Fuse will wait
+	    for reads to complete before issuing any other requests.
+    <DT> <CODE>FUSE_CAP_POSIX_LOCKS</CODE>
+	<DD> Set if the client supports "remote" locking via the
+	    <CODE><A HREF="#lock">lock</A></CODE> call.
+    <DT> <CODE>FUSE_CAP_ATOMIC_O_TRUNC</CODE>
+	<DD> Set if the filesystem supports the <CODE>O_TRUNC</CODE>
+	    open flag.
+    <DT> <CODE>FUSE_CAP_EXPORT_SUPPORT</CODE>
+	<DD> Set if the client handles lookups of "." and ".."
+	    itself.  Otherwise, FUSE traps these and handles them.
+    <DT> <CODE>FUSE_CAP_BIG_WRITES</CODE>
+	<DD> Set if the filesystem can handle writes larger than 4 KB.
+    <DT> <CODE>FUSE_CAP_DONT_MASK</CODE>
+	<DD> Set to prevent the <CODE>umask</CODE> from being applied
+	    to files on create operations.  (Note: as far as I can
+	    tell from examining the code, this flag isn't actually
+	    implemented.)
+</DL>
+
+<H4><A NAME="readdir-details">Readdir Function</A></H4>
+
+<P>
+The <CODE>readdir</CODE> function is somewhat like <CODE>read</CODE>,
+in that it starts at a given offset and returns results in a
+caller-supplied buffer.  However, the offset not a byte offset, and
+the results are a series of <CODE>struct dirent</CODE>s rather than
+being uninterpreted bytes.  To make life easier, FUSE provides a
+"filler" function that will help you put things into the buffer.
+
+<P>
+The general plan for a complete and correct <CODE>readdir</CODE> is:
+<OL>
+    <LI> Find the first directory entry following the given <CODE>offset</CODE>
+	(see below).
+    <LI> Optionally, create a <CODE>struct stat</CODE> that describes
+	the file as for <CODE>getattr</CODE> (but FUSE only looks at
+	<CODE>st_ino</CODE> and the file-type bits of
+	<CODE>st_mode</CODE>).
+    <LI> Call the <CODE>filler</CODE> function with arguments of
+	<CODE>buf</CODE>, the null-terminated filename, the address of
+	your <CODE>struct stat</CODE> (or NULL if you have none), and
+	the offset of the <EM>next</EM> directory entry.
+    <LI> If <CODE>filler</CODE> returns nonzero, or if there are no
+	more files, return 0.
+    <LI> Find the next file in the directory.
+    <LI> Go back to step 2.
+</OL>
+
+<P>
+From FUSE's point of view, the <CODE>offset</CODE> is an uninterpreted
+<CODE>off_t</CODE> (i.e., an unsigned integer).  You provide an offset
+when you call <CODE>filler</CODE>, and it's possible that such an
+offset might come back to you as an argument later.  Typically, it's
+simply the byte offset (within your directory layout) of the directory
+entry, but it's really up to you.
+
+<P>
+It's also important to note that <CODE>readdir</CODE> can return
+errors in a number of instances; in particular it can return -EBADF if
+the file handle is invalid, or -ENOENT if you use the
+<CODE>path</CODE> argument and the path doesn't exist.
+
+<H4><A NAME="locking-details">Lock function</A></H4>
+
+<P>
+The <CODE><A HREF="#lock">lock</A></CODE> function is somewhat
+complex.  The <CODE>cmd</CODE> will be one of <CODE>F_GETLK</CODE>,
+<CODE>F_SETLK</CODE>, or <CODE>F_SETLKW</CODE>.  The fields in
+<CODE>locks</CODE> are defined in the fcntl(2) manual page; the
+<CODE>l_whence</CODE> field in that structure will always be
+<CODE>SEEK_SET</CODE>.
+
+<P>
+For checking lock ownership, the <CODE>fi->owner</CODE> argument must
+be used.
+
+<!--
+<P>
+For <CODE>F_GETLK</CODE> operation, the FUSE library will first check
+currently held locks, and if a conflicting lock is found it will
+return information without calling this method.  This is intended to
+ensure that for local locks the <CODE>l_pid</CODE> field is correctly
+filled in.  The results may not be accurate in case of race conditions
+and in the presence of hard links, but according to comments in the
+code, "it's unlikly that an application would rely on accurate
+<CODE>GETLK</CODE> results in these cases."  Um, yeah.
+
+<P>
+If a conflicting lock is not found, the <CODE><A
+HREF="#lock">lock</A></CODE> method will be called, and the filesystem
+may fill in <CODE>l_pid</CODE> with a meaningful value, or it may
+leave this field zero.
+         
+<P>
+For <CODE>F_SETLK</CODE> and <CODE>F_SETLKW</CODE> the
+<CODE>l_pid</CODE> field will be set to the PID of the process
+performing the locking operation.
+         
+<P>
+<STRONG>NOTE:</STRONG> if this method is not implemented, the kernel
+will still allow file locking to work locally.  Hence it is only
+necessary in situations such as network filesystems, where other
+machines may be simultaneously accessing the files.
+-->
+
+<P>
+Contrary to what some other documentation states, the FUSE library
+does not appear to do anything special to help you out with locking.
+If you want locking to work, you will need to implement the lock
+function.  (Persons who have more knowledge of how FUSE locking works
+are encouraged to contact me on this topic, since the existing
+documentation appears to be inaccurate.)
+
+<H3>The Rest of a FUSE Client</H3>
+
+<P>
+Once you've written your operations, you need some boilerplate.
+As mentioned above, all of your functions should be named with a
+sensible prefix; here I use "<CODE>prefix</CODE>" to represent that.
+Create a <CODE>fuse_operations</CODE> struct that lists the functions
+you implemented (for any unimplemented ones, simply delete the
+relevant lines):
+
+<PRE>
+static struct fuse_operations prefix_oper = {
+    .init        = prefix_init,
+    .destroy     = prefix_destroy,
+    .getattr     = prefix_getattr,
+    .fgetattr    = prefix_fgetattr,
+    .access      = prefix_access,
+    .readlink    = prefix_readlink,
+    .readdir     = prefix_readdir,
+    .mknod       = prefix_mknod,
+    .mkdir       = prefix_mkdir,
+    .symlink     = prefix_symlink,
+    .unlink      = prefix_unlink,
+    .rmdir       = prefix_rmdir,
+    .rename      = prefix_rename,
+    .link        = prefix_link,
+    .chmod       = prefix_chmod,
+    .chown       = prefix_chown,
+    .truncate    = prefix_truncate,
+    .ftruncate   = prefix_ftruncate,
+    .utimens     = prefix_utimens,
+    .create      = prefix_create,
+    .open        = prefix_open,
+    .read        = prefix_read,
+    .write       = prefix_write,
+    .statfs      = prefix_statfs,
+    .release     = prefix_release,
+    .opendir     = prefix_opendir,
+    .releasedir  = prefix_releasedir,
+    .fsync       = prefix_fsync,
+    .flush       = prefix_flush,
+    .fsyncdir    = prefix_fsyncdir,
+    .lock        = prefix_lock,
+    .bmap        = prefix_bmap,
+    .ioctl       = prefix_ioctl,
+    .poll        = prefix_poll,
+#ifdef HAVE_SETXATTR
+    .setxattr    = prefix_setxattr,
+    .getxattr    = prefix_getxattr,
+    .listxattr   = prefix_listxattr,
+    .removexattr = prefix_removexattr,
+#endif
+    .flag_nullpath_ok = 0,                /* See below */
+};
+</PRE>
+
+<P>
+Set <CODE>flag_nullpath_ok</CODE> nonzero if your code can accept a
+NULL path argument (because it gets file information from
+<CODE>fi->fh</CODE>) for the following operations:
+<CODE><A HREF="#fgetattr">fgetattr</A></CODE>,
+<CODE><A HREF="#flush">flush</A></CODE>,
+<CODE><A HREF="#fsync">fsync</A></CODE>,
+<CODE><A HREF="#fsyncdir">fsyncdir</A></CODE>,
+<CODE><A HREF="#ftruncate">ftruncate</A></CODE>,
+<CODE><A HREF="#lock">lock</A></CODE>,
+<CODE><A HREF="#read">read</A></CODE>,
+<CODE><A HREF="#readdir">readdir</A></CODE>,
+<CODE><A HREF="#release">release</A></CODE>,
+<CODE><A HREF="#releasedir">releasedir</A></CODE>, and
+<CODE><A HREF="#write">write</A></CODE>.
+This will allow FUSE to run more efficiently.
+
+<P>
+Finally, since your client is actually an executable program, you need
+a <CODE>main</CODE>:
+
+<PRE>
+int main(int argc, char *argv[])
+{
+    umask(0);
+    return fuse_main(argc, argv, &prefix_oper, NULL);
+}
+</PRE>
+
+<H2><A NAME="compiling">Compiling Your Program</A></H2>
+
+<P>
+You can do your development on any machine you choose that supports
+FUSE.  Mac users can try <A
+HREF="http://code.google.com/p/macfuse/">macfuse</A>; Linux users
+should be able to find FUSE as part of their distribution.
+
+<P>
+Compiling a FUSE program requires a slightly complicated command:
+<PRE>
+/usr/bin/gcc -g `pkg-config fuse --cflags --libs` my_hello.c -o my_hello
+</PRE>
+
+A better approach, of course, is to use <CODE>make</CODE>.  This truly
+minimal <CODE><A HREF="Makefile">Makefile</A></CODE> will let you type
+"<CODE>make foo</CODE>" for any <CODE>foo.c</CODE>.  You are
+encouraged to use it and extend it to be more sensible.
+
+<STRONG>NOTE:</STRONG> On Wilkes, be sure to use "/usr/bin/gcc" rather
+than just "gcc".  Wilkes is specially configured so that plain gcc
+produces 32-bit code, but for this assignment you need 64-bit code.
+
+<H2><A NAME="running">Running &amp; Testing</A></H2>
+
+<P>
+To run a FUSE program, you'll need two windows and a scratch
+directory.  You'll run your filesystem under a debugger in
+window #1; window #2 will be used for testing.  The scratch directory
+is needed because you must have an empty directory on which to mount
+your shiny new filesystem.
+
+<P>
+The simplest (and incorrect, for our purposes) way to run a FUSE
+program is to make a scratch directory and then pass that as an
+argument to the program.  For example, if you're running the "hello,
+world" filesystem (<CODE>hello.c</CODE>):
+<PRE>
+$ mkdir testdir
+$ ./hello testdir
+$ ls testdir
+hello
+$ cat testdir/hello
+hello, world
+$ fusermount -u testdir
+$ rmdir testdir
+</PRE>
+
+<P>
+When you run your program this way, it automatically goes into the
+background and starts serving up your filesystem.  After you finish
+testing, the <CODE>fusermount</CODE> command unmounts your filesystem
+and kills the background program.
+
+<P>
+As a practical matter, it's easier to leave <CODE>testdir</CODE>
+hanging around rather than making it and removing it every time.  Most
+systems have a number of empty directories hanging around just in case
+you want to mount on top of them (often, either <CODE>/mnt</CODE> or
+inside <CODE>/mnt</CODE>).
+
+<P>
+Of course, it's unlikely that your program will work perfectly the
+first time, so it's better to run it under the debugger.  To do that,
+you'll need two windows.  In window #1, do:
+<PRE>
+$ mkdir testdir         # if necessary
+$ gdb hello
+[gdb noise]
+(gdb) [set breakpoints, etc.]
+(gdb) run -s -d testdir
+</PRE>
+
+<P>
+The <CODE>-s</CODE> switch means "single-threaded", which makes gdb
+behave in a much friendlier fashion.  The <CODE>-d</CODE> switch means
+"debug"; in addition to printing helpful debugging output, it keeps
+the program in the foreground so gdb won't lose track of it.
+
+<P>
+Now, in window #2 you can do:
+<PRE>
+$ ls testdir
+...                    # Other trial commands
+$ fusermount -u testdir
+</PRE>
+
+<P>
+<STRONG>IMPORTANT:</STRONG> You need to do the <CODE>fusermount</CODE>
+even if your program crashes or you abort it.  Otherwise you'll get a
+confusing "Transport endpoint not connected" message the next time you
+try to mount the test system.
+
+<P>
+If you have set breakpoints, when you do "ls testdir", your window may
+seem to hang.  That's OK; just go over to the gdb window and step
+through your code.  When it returns a result, your test window will
+come alive again.
+
+<H3><A NAME="other-options">Other Options</A></H3>
+
+<P>
+Your new FUSE client has a lot of options.  The simplest invocation
+just specifies a mount point.  For example, if your client is named
+<CODE>fuse_client</CODE> and you're mounting on "~/foo", use:
+<PRE>
+./fuse_client ~/foo
+</PRE>
+
+<P>
+There are tons of switches available; use <CODE>./fuse_client
+-h</CODE> to see them all.  The important ones are:
+
+<DL>
+    <DT> -d
+	<DD> Enable debugging output (implies -f).
+    <DT> -f
+	<DD> Run in foreground; this is useful if you're running under
+	    a debugger.  <STRONG>WARNING:</STRONG> When -f is given,
+	    Fuse's working directory is the directory you were in when
+	    you started it.  Without -f, Fuse changes directories to
+	    "/".  This will screw you up if you use relative
+	    pathnames.
+    <DT> -s
+	<DD> Run single-threaded instead of multi-threaded.  This
+	    makes debugging vastly easier, since gdb doesn't handle
+	    multiple threads all that well.  It also protects you from
+	    all sorts of race conditions.  Unless you're trying to
+	    write a production filesystem <EM>and</EM> you're a
+	    parallelism expert, I recommend that you <EM>always</EM>
+	    use this switch.
+    <DT> -o [no]rellinks
+	<DD> Transform absolute symlinks to relative (or don't, if
+	    <CODE>norellinks</CODE> is given).
+</DL>
+
+Contrary to what the help implies, switches can be specified before
+the mount point, in standard Unix fashion.
+
+<H2><A NAME="gotchas">Gotchas</A></H2>
+
+<P>
+There are several common problems that plague programmers new to
+Fuse.  This is a partial list:
+
+<DL>
+    <DT> Multithreading
+	<DD> By default, Fuse is multithreaded.  That's handy for
+	    production filesystems, because it lets client (or file
+	    access) A proceed even if client B is hung up.  But
+	    multithreading introduces the possibility of race
+	    conditions, and makes debugging harder.  Always run with
+	    the <CODE>-s</CODE> switch to avoid this problem.
+    <DT> <CODE>getattr</CODE>
+	<DD> Fuse calls <CODE>getattr</CODE> like crazy.  Implement it
+	    first, or nothing will work.
+    <DT> Truncate
+	<DD> Unless you're writing a read-only filesystem, you need to
+	    implement the <CODE>truncate</CODE> system call to make
+	    writes work correctly.
+    <DT> Working directory
+	<DD> When it starts, Fuse changes its working directory to
+	    "/".  That will probably break any code that uses relative
+	    pathnames.  To make matters worse, the <CODE>chdir</CODE>
+	    is suppressed when you run with the -f switch, so your
+	    code might appear to work fine under the debugger.  To
+	    avoid the problem, either (a) use absolute pathnames, or
+	    (b) record your current working directory by calling
+	    <CODE>get_current_dir_name</CODE> before you invoke
+	    <CODE>fuse_main</CODE>, and then convert relative
+	    pathnames into corresponding absolute ones.  Obviously,
+	    (b) is the preferred approach.
+    <DT> Printf
+	<DD> Your <CODE>printf</CODE>/<CODE>fprintf</CODE> debugging
+	    code will only work if you run with the <CODE>-f</CODE>
+	    switch.  Otherwise, Fuse disconnects <CODE>stdout</CODE>
+	    and <CODE>stderr</CODE>.
+    <DT> Unimplemented functions
+	<DD> It is very tempting to just leave functions undefined if
+	    your filesystem doesn't need them, or if you just haven't
+	    gotten around to writing them yet.  Don't.  If a function
+	    isn't listed in your <CODE>fuse_operations</CODE> struct,
+	    Fuse will silently generate a failure when it is called,
+	    and you'll never find out that you need to write it.
+	    Instead, write every unimplemented function as a stub that
+	    prints a message to <CODE>stderr</CODE> and returns an
+	    error code.  When you see the message, you'll know what
+	    extra functions you need to write.
+</DL>
+
+<P>
+<HR>
+
+<P>
+<EM>&#169; 2010, Geoff Kuenning</EM>
+
+<P>
+This page is maintained by <A HREF="http://www.cs.hmc.edu/~geoff"> Geoff
+Kuenning</A>.
+</BODY>
+</HTML>
