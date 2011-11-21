@@ -9,6 +9,12 @@ import os
 
 fuse.fuse_python_api = (0, 2)
 
+class BlockOutOfFS( Exception ):
+    pass
+
+class CantFindInodeFromPath( Exception ):
+    pass
+
 class SofsBlock:
     def __init__( self, sofs, index, BLOCK_SIZE=512, INT_SIZE=4):
         self.BLOCK_SIZE, self.INT_SIZE= BLOCK_SIZE, INT_SIZE
@@ -58,6 +64,9 @@ class INodeBlock( SoftBlock ):
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
 
+    def getFilename(self):
+        return self.filename
+
     def readFile():
         block_number= (self.size / self.BLOCK_SIZE) +1
         assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
@@ -83,6 +92,7 @@ class FileDescriptor:
         
 class SofsFormat:
     INT_SIZE=   4
+    MAX_INODES= 122
     def __init__(self, filename):
         self.device= open(filename, rw)
         self.zero_block= ZeroBlock( self )
@@ -90,7 +100,7 @@ class SofsFormat:
     def getBlock(x, index_check=True):
         if index_check:
             if x>=self.zero_block.block_count:
-                raise IOException("getBlockIndex on a out of bounds index")
+                raise BlockOutOfFS()
         return SofsBlock(self, x)
         
     def _writeBytes(index, b):
@@ -101,29 +111,43 @@ class SofsFormat:
         self.device.seek(index)
         return self.device.read(size)
 
-class SofsState(SofsFormat):
-    def __init__(self, filename):
-        SofsFormat.__init__(self, filename)
-        self.open_files=[]
+    def getInodeBlock(self, x):
+        index= 5+x
+        if index>=self.zero_block.block_count:
+            raise BlockOutOfFS()
+        return INodeBlock(self, index)
+
+    def find(path):
+        '''returns the inodeBlock of a path'''
+        inode=0
+        while inode < self.MAX_INODES:
+            try:
+                block= self.getInodeBlock( inode )
+                if block.getFilename()==path:
+                    return block
+            except BlockOutOfFS:
+                break   
+        raise CantFindInodeFromPath()
+
 
 
 class MyFS(fuse.Fuse):
     def __init__(self, filename, *args, **kw):
         fuse.Fuse.__init__(self, *args, **kw)
-        
+        format= SofsFormat(filename)
 
     def getattr(self, path):
         st = fuse.Stat()
-        st.st_mode = stat.S_IFDIR | 0755
-        st.st_nlink = 2
-        st.st_atime = int(time.time())
-        st.st_mtime = st.st_atime
-        st.st_ctime = st.st_atime
-
-        if path == '/':
-            pass
-        else:
-            return - errno.ENOENT
+        st.st_mode = 0755 #| stat.S_IFDIR
+        st.st_nlink = 1
+        st.st_atime = 0
+        st.st_mtime = 0
+        st.st_ctime = 0
+        
+        try:
+            inode= self.format.find(path)
+        except CantFindInodeFromPath:
+            raise IOError()
         return st
 
 if __name__ == '__main__':
