@@ -15,11 +15,11 @@ class SofsBlock:
         self.sofs= sofs_format
         self.index= index
 
-    def _writeBytes( index, b):
+    def _writeBytes( self, index, b):
         assert index < self.BLOCK_SIZE
         self.sofs.writeBytes( self.index*self.BLOCK_SIZE + index, b)
     
-    def _readBytes( index, size ):
+    def _readBytes( self, index, size ):
         assert index < self.BLOCK_SIZE
         return self.sofs.readBytes( self.index*self.BLOCK_SIZE + index, size)
 
@@ -46,14 +46,14 @@ class ZeroBlock( SofsBlock ):
     def getBlockCount(self):
         return self.block_count
 
-class FileDescriptorBlock( SoftBlock ):
+class INodeBlock( SoftBlock ):
     MAGIC= 0xf9fe9eef
     FILE_BLOCKS_INDEX= 18
     def __init__(self, sofs, index):
         SofsBlock.__init__(self, sofs, index)
         magic, self.readInt(0)
         if magic==-MAGIC:
-            raise IOException("Bad FileDescriptorBlock magic")
+            raise IOException("Bad INodeBlock magic")
         self.filename=  self._readBytes( 1*INT_SIZE, 64 )
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
@@ -94,12 +94,12 @@ class SofsFormat:
         return SofsBlock(self, x)
         
     def _writeBytes(index, b):
-        self.f.seek(index)
-        self.f.write(b)
+        self.device.seek(index)
+        self.device.write(b)
         
     def _readBytes(index, size):
-        self.f.seek(index)
-        return self.f.read(size)
+        self.device.seek(index)
+        return self.device.read(size)
 
 class SofsState(SofsFormat):
     def __init__(self, filename):
