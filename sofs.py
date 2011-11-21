@@ -18,7 +18,7 @@ class CantFindInodeFromPath( Exception ):
 class SofsBlock:
     def __init__( self, sofs, index, BLOCK_SIZE=512, INT_SIZE=4):
         self.BLOCK_SIZE, self.INT_SIZE= BLOCK_SIZE, INT_SIZE
-        self.sofs= sofs_format
+        self.sofs= sofs
         self.index= index
 
     def _writeBytes( self, index, b):
@@ -41,8 +41,8 @@ class SofsBlock:
 class ZeroBlock( SofsBlock ):
     MAGIC_1, MAGIC_2= 0x9aa9aa9a, 0x6d5fa7c3
     def __init__( self, sofs ):
-        SofsBlock.__init__(self, 0) #block number 0
-        magic_1, magic_2, block_size, block_count, free_list_head= map(self.readInt,range(5))]
+        SofsBlock.__init__(self, sofs, 0) #block number 0
+        magic_1, magic_2, block_size, block_count, free_list_head= map(self.readInt,range(5))
         if magic_1!=MAGIC_1 or magic_2!=MAGIC_2:
             raise IOException("Bad FS magic number")
         assert block_size==BLOCK_SIZE
@@ -52,7 +52,7 @@ class ZeroBlock( SofsBlock ):
     def getBlockCount(self):
         return self.block_count
 
-class INodeBlock( SoftBlock ):
+class INodeBlock( SofsBlock ):
     MAGIC= 0xf9fe9eef
     FILE_BLOCKS_INDEX= 18
     def __init__(self, sofs, index):
@@ -72,7 +72,7 @@ class INodeBlock( SoftBlock ):
         assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
         file_blocks= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
         
-        if offset + readlen = self.size:
+        if offset + readlen >= self.size:
             raise IOError()
         
         block_to_read = offset/self.BLOCK_SIZE                 #index of the block to be read
@@ -111,7 +111,7 @@ class SofsFormat:
     INT_SIZE=   4
     MAX_INODES= 122
     def __init__(self, filename):
-        self.device= open(filename, rw)
+        self.device= open(filename, 'rw')
         self.zero_block= ZeroBlock( self )
         
     def getBlock(x, index_check=True):
@@ -148,10 +148,11 @@ class SofsFormat:
 
 
 
-class MyFS(fuse.Fuse):
-    def __init__(self, filename, *args, **kw):
+class SoFS(fuse.Fuse):
+    def __init__(self, *args, **kw):
         fuse.Fuse.__init__(self, *args, **kw)
-        format= SofsFormat(filename)
+        self.device= None   #device path, will be set outside
+        self.format= None   #SofsFormat,  will be set outside
 
     def getattr(self, path):
         st = fuse.Stat()
@@ -168,6 +169,8 @@ class MyFS(fuse.Fuse):
         return st
 
 if __name__ == '__main__':
-    fs = MyFS()
-    fs.parse(errex=1)
+    fs = SoFS()
+    fs.parser.add_option(mountopt="device", metavar="DEVICE", help="device file")
+    tmp= fs.parse(values=fs, errex=1)
+    fs.format= SofsFormat( fs.device )
     fs.main()
