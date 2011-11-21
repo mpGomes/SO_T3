@@ -27,25 +27,25 @@ class SofsBlock:
     
     def _readBytes( self, index, size ):
         assert index < self.BLOCK_SIZE
-        return self.sofs.readBytes( self.index*self.BLOCK_SIZE + index, size)
+        return self.sofs._readBytes( self.index*self.BLOCK_SIZE + index, size)
 
     def writeInt(self, int_index, the_int):
-        to_write= struct.pack('<i', the_int)
+        to_write= struct.pack('<I', the_int)
         assert len(to_write)==self.INT_SIZE
         self.writeBytes( int_index*self.INT_SIZE, to_write)
     
     def readInt(self,  int_index):
-        int_bytes= self.readBytes( int_index*self.INT_SIZE, INT_SIZE )
-        return struct.unpack('<i', int_bytes)
+        int_bytes= self._readBytes( int_index*self.INT_SIZE, self.INT_SIZE )
+        return struct.unpack('<I', int_bytes)[0]
 
 class ZeroBlock( SofsBlock ):
     MAGIC_1, MAGIC_2= 0x9aa9aa9a, 0x6d5fa7c3
     def __init__( self, sofs ):
         SofsBlock.__init__(self, sofs, 0) #block number 0
         magic_1, magic_2, block_size, block_count, free_list_head= map(self.readInt,range(5))
-        if magic_1!=MAGIC_1 or magic_2!=MAGIC_2:
-            raise IOException("Bad FS magic number")
-        assert block_size==BLOCK_SIZE
+        if magic_1!=self.MAGIC_1 or magic_2!=self.MAGIC_2:
+            raise IOError("Bad FS magic number")
+        assert block_size==self.BLOCK_SIZE
         self.block_count= block_count   #total FS blocks
         self.free_list_head= free_list_head  #first free block
 
@@ -114,17 +114,17 @@ class SofsFormat:
         self.device= open(filename, 'rw')
         self.zero_block= ZeroBlock( self )
         
-    def getBlock(x, index_check=True):
+    def getBlock(self, x, index_check=True):
         if index_check:
             if x>=self.zero_block.block_count:
                 raise BlockOutOfFS()
         return SofsBlock(self, x)
         
-    def _writeBytes(index, b):
+    def _writeBytes(self, index, b):
         self.device.seek(index)
         self.device.write(b)
         
-    def _readBytes(index, size):
+    def _readBytes(self, index, size):
         self.device.seek(index)
         return self.device.read(size)
 
@@ -134,7 +134,7 @@ class SofsFormat:
             raise BlockOutOfFS()
         return INodeBlock(self, index)
 
-    def find(path):
+    def find(self, path):
         '''returns the inodeBlock of a path'''
         inode=0
         while inode < self.MAX_INODES:
