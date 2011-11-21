@@ -116,13 +116,13 @@ class INodeBlock( SofsBlock ):
         while (writelen > 0):
             block_bytes = self.BLOCK_SIZE - block_offset
             bytes_to_write = min( block_bytes, writelen)
-            curr_block.write_bytes(block_offset, bytes_to_write))
+            curr_block.write_bytes(block_offset, bytes_to_write)
             block_to_read += 1                                      #get next block to write
             curr_block = sofs.getBlock(file_blocks[block_to_read])
             block_offset = 0
             writelen -= bytes_to_write
             
-        if offset + writelen = self.size:
+        if offset + writelen == self.size:
             self.size = offset + writelen       #update file size
 
         return 0 #what to return?
