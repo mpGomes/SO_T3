@@ -5,6 +5,7 @@ import fuse
 import stat
 import time
 import struct
+import os
 
 fuse.fuse_python_api = (0, 2)
 
@@ -62,6 +63,22 @@ class FileDescriptorBlock( SoftBlock ):
         assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
         file_blocks= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
         #TODO
+
+class FileDescriptor:
+    def __init__(self, inode_block, mode):
+        self.allow_read, self.allow_write= False, False
+        self.seek_position=0
+        #check if file exists, or raise exception
+        if mode & os.O_RDONLY == os.O_RDONLY:
+            self.allow_read= True
+        if mode & os.O_WRONLY == os.O_WRONLY:
+            self.allow_write= True
+        if mode & os.APPEND == os.APPEND:
+            #self.seek_position= end of file...
+            pass
+    
+        
+        
         
         
 class SofsFormat:
@@ -83,6 +100,11 @@ class SofsFormat:
     def _readBytes(index, size):
         self.f.seek(index)
         return self.f.read(size)
+
+class SofsState(SofsFormat):
+    def __init__(self, filename):
+        SofsFormat.__init__(self, filename)
+        self.open_files=[]
 
 
 class MyFS(fuse.Fuse):
