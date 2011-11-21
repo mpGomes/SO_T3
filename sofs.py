@@ -32,10 +32,10 @@ class SofsBlock:
     def writeInt(self, int_index, the_int):
         to_write= struct.pack('<i', the_int)
         assert len(to_write)==self.INT_SIZE
-        self.writeBytes( int_index*self.INT_SIZE, to_write)
+        self._writeBytes( int_index*self.INT_SIZE, to_write)
     
     def readInt(self,  int_index):
-        int_bytes= self.readBytes( int_index*self.INT_SIZE, INT_SIZE )
+        int_bytes= self._readBytes( int_index*self.INT_SIZE, INT_SIZE )
         return struct.unpack('<i', int_bytes)
 
 class ZeroBlock( SofsBlock ):
@@ -55,6 +55,7 @@ class ZeroBlock( SofsBlock ):
 class INodeBlock( SofsBlock ):
     MAGIC= 0xf9fe9eef
     FILE_BLOCKS_INDEX= 18
+    MAX_BLOCKS=109
     def __init__(self, sofs, index):
         SofsBlock.__init__(self, sofs, index)
         magic, self.readInt(0)
@@ -67,7 +68,7 @@ class INodeBlock( SofsBlock ):
     def getFilename(self):
         return self.filename
 
-    def readFile(self, path, readlen, offset):
+    def readFile(self, readlen, offset):
         block_number= (self.size / self.BLOCK_SIZE) +1
         assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
         file_blocks= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
@@ -78,7 +79,7 @@ class INodeBlock( SofsBlock ):
         block_to_read = offset/self.BLOCK_SIZE                 #index of the block to be read
         block_offset = offset%self.BLOCK_SIZE
         
-        curr_block = file_blocks[block_to_read] #current block to be read
+        curr_block = sofs.getBlock(file_blocks[block_to_read]) #current block to be read
         
         result = []
         while(readlen > 0):
@@ -86,8 +87,39 @@ class INodeBlock( SofsBlock ):
             bytes_to_read = min( block_bytes, readlen)
             result.append(curr_block.read_bytes(block_offset, bytes_to_read))
             readlen -= bytes_to_read
+            block_to_read += 1
+            block_offset = 0
+            curr_block = sofs.getBlock(file_blocks[block_to_read])
         
         return "".join(result)
+
+    def writeFile(self, writelen, offset):
+
+        if offset > self.size or offset + writelen > self.MAX_BLOCKS*self.BLOCK_SIZE:     
+            raise IOError()
+
+        block_number= (self.size / self.BLOCK_SIZE) +1
+        assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
+        file_blocks= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
+        
+        block_to_write = offset/self.BLOCK_SIZE                 #index of the block to be written
+        block_offset = offset%self.BLOCK_SIZE
+
+        curr_block = sofs.getBlock(file_blocks[block_to_read]) #current block
+
+        while (writelen > 0):
+            block_bytes = self.BLOCK_SIZE - block_offset
+            bytes_to_write = min( block_bytes, writelen)
+            curr_block.write_bytes(block_offset, bytes_to_write))
+            block_to_read += 1                                      #get next block to write
+            curr_block = sofs.getBlock(file_blocks[block_to_read])
+            block_offset = 0
+            writelen -= bytes_to_write
+            
+        if offset + writelen = self.size:
+            self.size = offset + writelen       #update file size
+
+        return 0 #what to return?
         
 class FileDescriptor:
     def __init__(self, inode_block, mode):
@@ -102,11 +134,6 @@ class FileDescriptor:
             #self.seek_position= end of file...
             pass
 
-    
-        
-        
-        
-        
 class SofsFormat:
     INT_SIZE=   4
     MAX_INODES= 122
