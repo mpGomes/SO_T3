@@ -7,6 +7,14 @@ import time
 import struct
 import os
 
+import logging
+log= logging.getLogger('sofs')
+formatter = logging.Formatter('%(asctime)s\t%(levelname)s\t%(name)s\t%(module)s\t%(funcName)s\t%(message)s')
+hdlr = logging.FileHandler('sofs.log.tsv', mode="w")
+hdlr.setFormatter(formatter)
+log.addHandler(hdlr) 
+log.setLevel(logging.DEBUG)
+
 fuse.fuse_python_api = (0, 2)
 
 class BlockOutOfFS( Exception ):
@@ -169,6 +177,7 @@ class SofsFormat:
 
     def find(self, path):
         '''returns the inodeBlock of a path'''
+        log.debug("finding path "+path)
         inode=0
         while inode < self.MAX_INODES:
             try:
@@ -177,6 +186,7 @@ class SofsFormat:
                     return block
             except BlockOutOfFS:
                 break   
+        log.error("could not find path "+path)
         raise CantFindInodeFromPath()
 
 
@@ -189,19 +199,22 @@ class SoFS(fuse.Fuse):
 
     def getattr(self, path):
         st = fuse.Stat()
-        st.st_mode = 0755 #| stat.S_IFDIR
+        st.st_mode = 0755 | stat.S_IFDIR
         st.st_nlink = 1
-        st.st_atime = 0
-        st.st_mtime = 0
-        st.st_ctime = 0
-        
+        st.st_atime = 0.0
+        st.st_mtime = 0.0
+        st.st_ctime = 0.0
+
+        if os.path.abspath(path)=="/":
+                return st
+
         try:
             inode= self.format.find(path)
+            return st
         except CantFindInodeFromPath:
-            e= OSError("Bad INodeBlock magic")
-            e.errno= errno.EINVAL
+            e= OSError("Couldn't find the given path")
+            e.errno= errno.ENOENT
             raise e
-        return st
 
 if __name__ == '__main__':
     fs = SoFS()
