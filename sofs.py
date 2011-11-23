@@ -29,6 +29,7 @@ class NotAnInodeBlock( Exception ):
 class SofsBlock:
     def __init__( self, sofs, index, BLOCK_SIZE=512, INT_SIZE=4):
         self.BLOCK_SIZE, self.INT_SIZE= BLOCK_SIZE, INT_SIZE
+        self.TOTAL_INTS= self.BLOCK_SIZE / self.INT_SIZE
         self.sofs= sofs
         self.index= index
 
@@ -63,9 +64,10 @@ class SofsBlock:
 
 class ZeroBlock( SofsBlock ):
     MAGIC_1, MAGIC_2= 0x9aa9aa9a, 0x6d5fa7c3
+    START_OF_INODES_INDEXES= 5
     def __init__( self, sofs ):
         SofsBlock.__init__(self, sofs, 0) #block number 0
-        magic_1, magic_2, block_size, block_count, free_list_head= map(self.readInt,range(5))
+        magic_1, magic_2, block_size, block_count, free_list_head= map(self.readInt,range( self.START_OF_INODES_INDEXES ))
         if magic_1!=self.MAGIC_1 or magic_2!=self.MAGIC_2:
             e= IOError("Bad FS magic number")
             e.errno= errno.EINVAL
@@ -81,6 +83,22 @@ class ZeroBlock( SofsBlock ):
         self.free_list_head= index
         self._writeInt(4, index)
 
+    def getInodes(self):
+        all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
+        allocated_indexes=  filter(lambda x:x!=-1, all_inodes_indexes)
+        inodes= map(self.sofs.getBlock, allocated_indexes)
+        return inodes 
+    
+    def writeNewInode( self, inode_block):
+        all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
+        i= all_inodes_indexes.index(-1)
+        self.writeInt( i, inode_block.index)
+        
+    def deleteInode(self, inode_block):
+        all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
+        i= all_inodes_indexes.index( inode_block.index)
+        self.writeInt( i, -1)
+        
     def getBlockCount(self):
         return self.block_count
 
@@ -107,6 +125,7 @@ class INodeBlock( SofsBlock ):
         b.writeInt(0, self.MAGIC)
         b._writeBytes( SofsFormat.INT_SIZE, filename+"\0")
         b.writeInt(17,0)
+        sofs.zero_block.writeInode( b)
         return InodeBlock(sofs, b.index)
 
     def getFilename(self):
@@ -169,9 +188,11 @@ class INodeBlock( SofsBlock ):
     
     def unlink(self):
         '''frees data blocks and inode block'''
+        self.sofs.zero_block.deleteInode( self )
         for block in self.getAllocatedBlocks():
             block.deallocate()
         self.deallocate()
+        
 
 class FreeBlock( SofsBlock ):
     def __init__(self, sofs, index):
