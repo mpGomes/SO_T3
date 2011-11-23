@@ -42,13 +42,13 @@ class SofsBlock:
         return self.sofs._readBytes( self.index*self.BLOCK_SIZE + index, size)
 
     def writeInt(self, int_index, the_int):
-        to_write= struct.pack('<I', the_int)
+        to_write= struct.pack('<i', the_int)
         assert len(to_write)==self.INT_SIZE
         self._writeBytes( int_index*self.INT_SIZE, to_write)
     
     def readInt(self,  int_index):
         int_bytes= self._readBytes( int_index*self.INT_SIZE, self.INT_SIZE )
-        return struct.unpack('<I', int_bytes)[0]
+        return struct.unpack('<i', int_bytes)[0]
 
     @staticmethod
     def allocateBlock(sofs):
@@ -63,7 +63,7 @@ class SofsBlock:
         self.sofs.zero_block.setFirstFreeBlock( self.index ) #update head
 
 class ZeroBlock( SofsBlock ):
-    MAGIC_1, MAGIC_2= 0x9aa9aa9a, 0x6d5fa7c3
+    MAGIC_1, MAGIC_2= -1700156774, 1834985411 # signed ints for 0x9aa9aa9a, 0x6d5fa7c3
     START_OF_INODES_INDEXES= 5
     def __init__( self, sofs ):
         SofsBlock.__init__(self, sofs, 0) #block number 0
@@ -86,7 +86,7 @@ class ZeroBlock( SofsBlock ):
     def getInodes(self):
         all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
         allocated_indexes=  filter(lambda x:x!=-1, all_inodes_indexes)
-        inodes= map(self.sofs.getBlock, allocated_indexes)
+        inodes= map(self.sofs.getInodeBlock, allocated_indexes)
         return inodes 
     
     def writeNewInode( self, inode_block):
@@ -103,7 +103,7 @@ class ZeroBlock( SofsBlock ):
         return self.block_count
 
 class INodeBlock( SofsBlock ):
-    MAGIC= 0xf9fe9eef
+    MAGIC= -274792711 #signed int for 0xf9fe9eef
     FILE_BLOCKS_INDEX= 18
     MAX_BLOCKS=109
     def __init__(self, sofs, index):
@@ -212,7 +212,7 @@ class SofsFormat:
     def getBlock(self, x, index_check=True):
         if index_check:
             if x>=self.zero_block.block_count:
-                raise BlockOutOfFS()
+                raise BlockOutOfFS(str(x))
         return SofsBlock(self, x)
         
     def _writeBytes(self, index, b):
@@ -240,17 +240,11 @@ class SofsFormat:
     def find(self, path):
         '''returns the inodeBlock of a path'''
         log.debug("executing find on "+path)
-        inode=0
-        while inode < self.MAX_INODES:
-            try:
-                block= self.getInodeBlock( inode )
-                if block.getFilename()==path:
-                    log.debug("match on path of inode "+str(inode))
-                    return block
-            except BlockOutOfFS:
-                break  
-            except NotAnInodeBlock:
-                pass
+        inodes= self.zero_block.getInodes()
+        for inode in inodes:
+            if inode.getFilename()==path:
+                log.debug("match on path of inode "+str(inode))
+                return inode
         log.error("could not find path "+path)
         raise CantFindInodeFromPath()
 
@@ -292,8 +286,8 @@ class SoFS(fuse.Fuse):
 
     def readdir(self, path, offset):
         log.debug("called getdir {0} {1}".format(path, offset))
-        for e in ["inexistent.file"]:
-            yield fuse.Direntry(e)
+        for ib in self.format.zero_block.getInodes():
+            yield fuse.Direntry( ib.filename )
     
 
 if __name__ == '__main__':
