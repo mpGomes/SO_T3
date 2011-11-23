@@ -19,15 +19,18 @@ fuse.fuse_python_api = (0, 2)
 
 class BlockOutOfFS( Exception ):
     pass
-
 class CantFindInodeFromPath( Exception ):
     pass
-
 class NotAnInodeBlock( Exception ):
+    pass
+class NoFreeBlocks( Exception ):
     pass
 
 class SofsBlock:
     def __init__( self, sofs, index, BLOCK_SIZE=512, INT_SIZE=4):
+        if hasattr(sofs, "zero_block"):
+            if index>= sofs.zero_block.block_count or index<0:
+                raise BlockOutOfFS()
         self.BLOCK_SIZE, self.INT_SIZE= BLOCK_SIZE, INT_SIZE
         self.TOTAL_INTS= self.BLOCK_SIZE / self.INT_SIZE
         self.sofs= sofs
@@ -77,7 +80,9 @@ class ZeroBlock( SofsBlock ):
         self.free_list_head= free_list_head  #first free block
         
     def getFirstFreeBlockIndex(self):
-        return self.free_list_head
+        i= self.free_list_head
+        if i==-1:
+            raise NoFreeBlocks()
 
     def setFirstFreeBlockIndex(self, index):
         self.free_list_head= index
@@ -116,7 +121,7 @@ class INodeBlock( SofsBlock ):
         self.size= self.readInt(17)
 
     @staticmethod
-    def allocateInodeBlock(sofs):
+    def allocateInodeBlock(sofs, filename):
         if len(filename)>63:
             e= IOError()
             e.errno= errno.ENAMETOOLONG
@@ -226,14 +231,10 @@ class SofsFormat:
     def getInodeBlock(self, x):
         print "getting inode block"+str(x)
         index= 5+x
-        if index>=self.zero_block.block_count:
-            raise BlockOutOfFS()
         return INodeBlock(self, index)
     
     def getFreeBlock(self):
         log.debug("getting free block")
-        if x>=self.zero_block.block_count:
-            raise BlockOutOfFS()
         i= self.zero_block.getFirstFreeBlockIndex()
         return FreeBlock(self, i)
 
@@ -290,6 +291,9 @@ class SoFS(fuse.Fuse):
         filenames.append( [i.filename for i in self.format.zero_block.getInodes()] )
         for fn in filenames:
             yield fuse.Direntry( fn )
+
+    def create(self, path, flags, mode):
+        INodeBlock.allocateInodeBlock(self.format, path)
         
     
 
