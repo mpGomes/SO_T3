@@ -225,6 +225,11 @@ class SoFS(fuse.Fuse):
     
     def open( self, path, flags ):
         log.debug("called open {0} {1}".format(path, flags))
+
+    def readdir(self, path, offset):
+        log.debug("called getdir {0} {1}".format(path, offset))
+        for e in ["inexistent.file"]:
+            yield fuse.Direntry(e)
     
 
 if __name__ == '__main__':
