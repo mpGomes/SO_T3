@@ -55,6 +55,11 @@ class SofsBlock:
         nfbi= fb.getNextFreeBlockIndex()#get next free block
         sofs.zero_block.setFirstFreeBlock( nfbi )   #update head
         return SofsBlock(sofs, fb.index)
+    
+    def deallocate(self):
+        fb= self.sofs.getFirstFreeBlock()         #get current head
+        self.writeInt(0, fb.index )               #update next pointer
+        self.sofs.zero_block.setFirstFreeBlock( self.index ) #update head
 
 class ZeroBlock( SofsBlock ):
     MAGIC_1, MAGIC_2= 0x9aa9aa9a, 0x6d5fa7c3
@@ -69,10 +74,10 @@ class ZeroBlock( SofsBlock ):
         self.block_count= block_count   #total FS blocks
         self.free_list_head= free_list_head  #first free block
         
-    def getFirstFreeBlock(self):
+    def getFirstFreeBlockIndex(self):
         return self.free_list_head
 
-    def setFirstFreeBlock(self, index):
+    def setFirstFreeBlockIndex(self, index):
         self.free_list_head= index
         self._writeInt(4, index)
 
@@ -104,25 +109,25 @@ class INodeBlock( SofsBlock ):
         b.writeInt(17,0)
         return InodeBlock(sofs, b.index)
 
-
     def getFilename(self):
         return self.filename
 
-    def readFile(self, readlen, offset):
+    def getAllocatedBlocks(self):
         block_number= (self.size / self.BLOCK_SIZE) +1
         assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
-        file_blocks= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
+        file_blocks_indexes= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
+        return [SofsBlock(self.sofs, i) for i in file_blocks_indexes]
         
+    def readFile(self, readlen, offset):
         if offset + readlen >= self.size:
             e= OSError("Try to read outside file")
             e.errno= errno.EINVAL
             raise e
-        
         block_to_read = offset/self.BLOCK_SIZE                 #index of the block to be read
         block_offset = offset%self.BLOCK_SIZE
-        
-        curr_block = sofs.getBlock(file_blocks[block_to_read]) #current block to be read
-        
+        curr_block = blocks[block_to_read] #current block to be read
+
+        blocks= self.getAllocatedBlocks()
         result = []
         while(readlen > 0):
             block_bytes = self.BLOCK_SIZE - block_offset
@@ -131,8 +136,7 @@ class INodeBlock( SofsBlock ):
             readlen -= bytes_to_read
             block_to_read += 1
             block_offset = 0
-            curr_block = sofs.getBlock(file_blocks[block_to_read])
-        
+            curr_block = blocks[block_to_read]
         return "".join(result)
 
     def writeFile(self, writelen, offset):
@@ -162,6 +166,12 @@ class INodeBlock( SofsBlock ):
             self.size = offset + writelen       #update file size
 
         return 0 #what to return?
+    
+    def unlink(self):
+        '''frees data blocks and inode block'''
+        for block in self.getAllocatedBlocks():
+            block.deallocate()
+        self.deallocate()
 
 class FreeBlock( SofsBlock ):
     def __init__(self, sofs, index):
@@ -203,7 +213,7 @@ class SofsFormat:
         log.debug("getting free block")
         if x>=self.zero_block.block_count:
             raise BlockOutOfFS()
-        i= self.zero_block.get_first_free_block()
+        i= self.zero_block.getFirstFreeBlockIndex()
         return FreeBlock(self, i)
 
     def find(self, path):
