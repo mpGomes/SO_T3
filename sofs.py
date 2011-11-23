@@ -286,8 +286,11 @@ class SoFS(fuse.Fuse):
 
     def readdir(self, path, offset):
         log.debug("called getdir {0} {1}".format(path, offset))
-        for ib in self.format.zero_block.getInodes():
-            yield fuse.Direntry( ib.filename )
+        filenames= [".",".."]
+        filenames.append( [i.filename for i in self.format.zero_block.getInodes()] )
+        for fn in filenames:
+            yield fuse.Direntry( fn )
+        
     
 
 if __name__ == '__main__':
