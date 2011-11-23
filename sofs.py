@@ -198,6 +198,7 @@ class SoFS(fuse.Fuse):
         self.format= None   #SofsFormat,  will be set outside
 
     def getattr(self, path):
+        log.debug("called getattr {0}".format(path))
         st = fuse.Stat()
         st.st_mode = 0755 | stat.S_IFDIR
         st.st_nlink = 1
@@ -215,6 +216,16 @@ class SoFS(fuse.Fuse):
             e= OSError("Couldn't find the given path")
             e.errno= errno.ENOENT
             raise e
+    
+    def write(self, buf, offset):
+        log.debug("called write {0} {1}".format(buf, offset))
+    
+    def read(self, size, offset):
+        log.debug("called read {0} {1}".format(size, offset))
+    
+    def open( self, path, flags ):
+        log.debug("called open {0} {1}".format(path, flags))
+    
 
 if __name__ == '__main__':
     fs = SoFS()
