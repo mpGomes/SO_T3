@@ -23,6 +23,9 @@ class BlockOutOfFS( Exception ):
 class CantFindInodeFromPath( Exception ):
     pass
 
+class NotAnInodeBlock( Exception ):
+    pass
+
 class SofsBlock:
     def __init__( self, sofs, index, BLOCK_SIZE=512, INT_SIZE=4):
         self.BLOCK_SIZE, self.INT_SIZE= BLOCK_SIZE, INT_SIZE
@@ -46,6 +49,13 @@ class SofsBlock:
         int_bytes= self._readBytes( int_index*self.INT_SIZE, self.INT_SIZE )
         return struct.unpack('<I', int_bytes)[0]
 
+    @staticmethod
+    def allocateBlock(sofs):
+        fb= sofs.getFreeBlock()         #get free block from head
+        nfbi= fb.getNextFreeBlockIndex()#get next free block
+        sofs.zero_block.setFirstFreeBlock( nfbi )   #update head
+        return SofsBlock(sofs, fb.index)
+
 class ZeroBlock( SofsBlock ):
     MAGIC_1, MAGIC_2= 0x9aa9aa9a, 0x6d5fa7c3
     def __init__( self, sofs ):
@@ -58,6 +68,13 @@ class ZeroBlock( SofsBlock ):
         assert block_size==self.BLOCK_SIZE
         self.block_count= block_count   #total FS blocks
         self.free_list_head= free_list_head  #first free block
+        
+    def getFirstFreeBlock(self):
+        return self.free_list_head
+
+    def setFirstFreeBlock(self, index):
+        self.free_list_head= index
+        self._writeInt(4, index)
 
     def getBlockCount(self):
         return self.block_count
@@ -70,12 +87,23 @@ class INodeBlock( SofsBlock ):
         SofsBlock.__init__(self, sofs, index)
         magic= self.readInt(0)
         if magic!=self.MAGIC:
-            e= OSError("Bad INodeBlock magic")
-            e.errno= errno.EINVAL
-            raise e
+            raise NotAnInodeBlock()
         self.filename=  self._readBytes( 1*INT_SIZE, 64 )
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
+
+    @staticmethod
+    def allocateInodeBlock(sofs):
+        if len(filename)>63:
+            e= IOError()
+            e.errno= errno.ENAMETOOLONG
+            raise e
+        b= SofsBlock.allocateBlock(sofs)
+        b.writeInt(0, self.MAGIC)
+        b._writeBytes( SofsFormat.INT_SIZE, filename+"\0")
+        b.writeInt(17,0)
+        return InodeBlock(sofs, b.index)
+
 
     def getFilename(self):
         return self.filename
@@ -134,19 +162,14 @@ class INodeBlock( SofsBlock ):
             self.size = offset + writelen       #update file size
 
         return 0 #what to return?
+
+class FreeBlock( SofsBlock ):
+    def __init__(self, sofs, index):
+        SofsBlock.__init__(sofs, index)
+    def getNextFreeBlockIndex(self):
+        return self.getInt(0)
         
-class FileDescriptor:
-    def __init__(self, inode_block, mode):
-        self.allow_read, self.allow_write= False, False
-        self.seek_position=0
-        #check if file exists, or raise exception
-        if mode & os.O_RDONLY == os.O_RDONLY:
-            self.allow_read= True
-        if mode & os.O_WRONLY == os.O_WRONLY:
-            self.allow_write= True
-        if mode & os.APPEND == os.APPEND:
-            #self.seek_position= end of file...
-            pass
+
 
 class SofsFormat:
     INT_SIZE=   4
@@ -170,22 +193,33 @@ class SofsFormat:
         return self.device.read(size)
 
     def getInodeBlock(self, x):
+        print "getting inode block"+str(x)
         index= 5+x
         if index>=self.zero_block.block_count:
             raise BlockOutOfFS()
         return INodeBlock(self, index)
+    
+    def getFreeBlock(self):
+        log.debug("getting free block")
+        if x>=self.zero_block.block_count:
+            raise BlockOutOfFS()
+        i= self.zero_block.get_first_free_block()
+        return FreeBlock(self, i)
 
     def find(self, path):
         '''returns the inodeBlock of a path'''
-        log.debug("finding path "+path)
+        log.debug("executing find on "+path)
         inode=0
         while inode < self.MAX_INODES:
             try:
                 block= self.getInodeBlock( inode )
                 if block.getFilename()==path:
+                    log.debug("match on path of inode "+str(inode))
                     return block
             except BlockOutOfFS:
-                break   
+                break  
+            except NotAnInodeBlock:
+                pass
         log.error("could not find path "+path)
         raise CantFindInodeFromPath()
 
@@ -207,8 +241,7 @@ class SoFS(fuse.Fuse):
         st.st_ctime = 0.0
 
         if os.path.abspath(path)=="/":
-                return st
-
+            return st
         try:
             inode= self.format.find(path)
             return st
