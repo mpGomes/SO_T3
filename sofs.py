@@ -135,10 +135,10 @@ class INodeBlock( SofsBlock ):
             e.errno= errno.ENAMETOOLONG
             raise e
         b= SofsBlock.allocateBlock(sofs)
-        b.writeInt(0, self.MAGIC)
+        b.writeInt(0, INodeBlock.MAGIC)
         b._writeBytes( SofsFormat.INT_SIZE, filename+"\0")
         b.writeInt(17,0)
-        sofs.zero_block.writeInode( b)
+        sofs.zero_block.writeNewInode( b)
         return InodeBlock(sofs, b.index)
 
     def getFilename(self):
@@ -219,7 +219,7 @@ class SofsFormat:
     INT_SIZE=   4
     MAX_INODES= 122
     def __init__(self, filename):
-        self.device= open(filename, 'rw')
+        self.device= open(filename, 'r+')   #read-write
         self.zero_block= ZeroBlock( self )
         
     def getBlock(self, x, index_check=True):
