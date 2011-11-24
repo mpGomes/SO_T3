@@ -30,7 +30,7 @@ class SofsBlock:
     def __init__( self, sofs, index, BLOCK_SIZE=512, INT_SIZE=4):
         if hasattr(sofs, "zero_block"):
             if index>= sofs.zero_block.block_count or index<0:
-                raise BlockOutOfFS()
+                raise BlockOutOfFS(str(index))
         self.BLOCK_SIZE, self.INT_SIZE= BLOCK_SIZE, INT_SIZE
         self.TOTAL_INTS= self.BLOCK_SIZE / self.INT_SIZE
         self.sofs= sofs
@@ -38,32 +38,39 @@ class SofsBlock:
 
     def _writeBytes( self, index, b):
         assert index < self.BLOCK_SIZE
-        self.sofs.writeBytes( self.index*self.BLOCK_SIZE + index, b)
+        log.debug("block: writing bytes on index {0}: {1}".format(index, b))
+        self.sofs._writeBytes( self.index*self.BLOCK_SIZE + index, b)
     
     def _readBytes( self, index, size ):
         assert index < self.BLOCK_SIZE
+        #log.debug("block: reading {0} bytes from index {1}".format(size, index))
         return self.sofs._readBytes( self.index*self.BLOCK_SIZE + index, size)
 
     def writeInt(self, int_index, the_int):
+        log.debug("writing int {0} to offset {1}".format(the_int, int_index))
         to_write= struct.pack('<i', the_int)
         assert len(to_write)==self.INT_SIZE
         self._writeBytes( int_index*self.INT_SIZE, to_write)
     
     def readInt(self,  int_index):
         int_bytes= self._readBytes( int_index*self.INT_SIZE, self.INT_SIZE )
-        return struct.unpack('<i', int_bytes)[0]
-
+        the_int= struct.unpack('<i', int_bytes)[0]
+        #log.debug("read int {0} from offset {1}".format(the_int, int_index))
+        return the_int
+        
     @staticmethod
     def allocateBlock(sofs):
+        log.debug("allocating block")
         fb= sofs.getFreeBlock()         #get free block from head
         nfbi= fb.getNextFreeBlockIndex()#get next free block
-        sofs.zero_block.setFirstFreeBlock( nfbi )   #update head
+        sofs.zero_block.setFirstFreeBlockIndex( nfbi )   #update head
         return SofsBlock(sofs, fb.index)
     
     def deallocate(self):
+        log.debug("deallocating block")
         fb= self.sofs.getFirstFreeBlock()         #get current head
         self.writeInt(0, fb.index )               #update next pointer
-        self.sofs.zero_block.setFirstFreeBlock( self.index ) #update head
+        self.sofs.zero_block.setFirstFreeBlockIndex( self.index ) #update head
 
 class ZeroBlock( SofsBlock ):
     MAGIC_1, MAGIC_2= -1700156774, 1834985411 # signed ints for 0x9aa9aa9a, 0x6d5fa7c3
@@ -83,10 +90,11 @@ class ZeroBlock( SofsBlock ):
         i= self.free_list_head
         if i==-1:
             raise NoFreeBlocks()
+        return i
 
     def setFirstFreeBlockIndex(self, index):
         self.free_list_head= index
-        self._writeInt(4, index)
+        self.writeInt(4, index)
 
     def getInodes(self):
         all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
@@ -201,9 +209,9 @@ class INodeBlock( SofsBlock ):
 
 class FreeBlock( SofsBlock ):
     def __init__(self, sofs, index):
-        SofsBlock.__init__(sofs, index)
+        SofsBlock.__init__(self, sofs, index)
     def getNextFreeBlockIndex(self):
-        return self.getInt(0)
+        return self.readInt(0)
         
 
 
@@ -221,21 +229,24 @@ class SofsFormat:
         return SofsBlock(self, x)
         
     def _writeBytes(self, index, b):
+        log.debug("write bytes to offset {0}: {1}".format(index, b))
         self.device.seek(index)
         self.device.write(b)
         
     def _readBytes(self, index, size):
+        #log.debug("reading {0} bytes from offset {1}".format(size, index))
         self.device.seek(index)
         return self.device.read(size)
 
     def getInodeBlock(self, x):
-        print "getting inode block"+str(x)
+        log.debug("getting inode block "+str(x))
         index= 5+x
         return INodeBlock(self, index)
     
     def getFreeBlock(self):
         log.debug("getting free block")
         i= self.zero_block.getFirstFreeBlockIndex()
+        log.debug("returning block "+str(i))
         return FreeBlock(self, i)
 
     def find(self, path):
@@ -286,13 +297,14 @@ class SoFS(fuse.Fuse):
         log.debug("called open {0} {1}".format(path, flags))
 
     def readdir(self, path, offset):
-        log.debug("called getdir {0} {1}".format(path, offset))
+        log.debug("called readdir {0} {1}".format(path, offset))
         filenames= [".",".."]
         filenames.append( [i.filename for i in self.format.zero_block.getInodes()] )
         for fn in filenames:
             yield fuse.Direntry( fn )
 
     def create(self, path, flags, mode):
+        log.debug("called create "+path)
         INodeBlock.allocateInodeBlock(self.format, path)
         
     
