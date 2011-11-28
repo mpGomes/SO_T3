@@ -301,6 +301,14 @@ class SoFS(fuse.Fuse):
     
     def open( self, path, flags ):
         log.debug("called open {0} {1}".format(path, flags))
+    
+    def flush(self, path):
+        log.debug("called close {0}".format(path))
+        return 0
+        
+    def release(self, path, flags):
+        log.debug("called close {0} {1}".format(path, flags))
+        return 0
 
     def readdir(self, path, offset):
         log.debug("called readdir {0} {1}".format(path, offset))
