@@ -191,7 +191,7 @@ class INodeBlock( SofsBlock ):
         return [SofsBlock(self.sofs, i) for i in file_blocks_indexes]
         
     def readFile(self, readlen, offset):
-        if offset + readlen >= self.size:
+        if offset + readlen > self.size:
             e= OSError("Try to read outside file")
             e.errno= errno.EINVAL
             raise e
@@ -199,12 +199,11 @@ class INodeBlock( SofsBlock ):
         block_to_read = offset/self.BLOCK_SIZE              #index of the block to be read
         block_offset = offset%self.BLOCK_SIZE
         curr_block = blocks[block_to_read]                  #current block to be read
-        
         result = []
         while(readlen > 0):
             block_bytes = self.BLOCK_SIZE - block_offset
             bytes_to_read = min( block_bytes, readlen)
-            result.append(curr_block.read_bytes(block_offset, bytes_to_read))
+            result.append(curr_block._read_bytes(block_offset, bytes_to_read))
             readlen -= bytes_to_read
             block_to_read += 1
             block_offset = 0
@@ -212,32 +211,21 @@ class INodeBlock( SofsBlock ):
         return "".join(result)
 
     def writeFile(self, buf, offset):
-
-        if offset > self.size or offset + writelen > self.MAX_BLOCKS*self.BLOCK_SIZE:     
-            raise IOError()
-
-        block_number= (self.size / self.BLOCK_SIZE) +1
-        assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
-        file_blocks= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
-        
+        if offset + len(buf) > self.size:     
+            self.setSize(offset + len(buf))
+        blocks= self.getAllocatedBlocks()
         block_to_write = offset/self.BLOCK_SIZE                 #index of the block to be written
         block_offset = offset%self.BLOCK_SIZE
-
-        curr_block = sofs.getBlock(file_blocks[block_to_read]) #current block
-
-        while (writelen > 0):
+        curr_block = sofs.getBlock(blocks[block_to_write]) #current block
+        remaining_bytes=len(buf)
+        while (remaining_bytes > 0):
             block_bytes = self.BLOCK_SIZE - block_offset
-            bytes_to_write = min( block_bytes, writelen)
-            curr_block.write_bytes(block_offset, bytes_to_write)
-            block_to_read += 1                                      #get next block to write
-            curr_block = sofs.getBlock(file_blocks[block_to_read])
+            bytes_to_write = min( block_bytes, remaining_bytes)
+            curr_block._write_bytes(block_offset, bytes_to_write)
+            block_to_write += 1                                      #get next block to write
+            curr_block = sofs.getBlock(blocks[block_to_write])
             block_offset = 0
-            writelen -= bytes_to_write
-            
-        if offset + writelen == self.size:
-            self.size = offset + writelen       #update file size
-
-        return 0 #what to return?
+            remaining_bytes -= bytes_to_write
     
     def unlink(self):
         '''frees data blocks and inode block'''
