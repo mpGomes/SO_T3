@@ -128,26 +128,66 @@ class INodeBlock( SofsBlock ):
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
 
-    @staticmethod
-    def allocateInodeBlock(sofs, filename):
+    def getFilename(self):
+        return self.filename
+
+    def setFilename(self, filename):
         if len(filename)>63:
             e= IOError()
             e.errno= errno.ENAMETOOLONG
             raise e
+        self._writeBytes( SofsFormat.INT_SIZE, filename+"\0")
+        self.filename= filename
+
+    def getSize(self):
+        return self.size
+
+    def setSize(self, newsize):
+        if newsize > self.BLOCK_SIZE * self.MAX_BLOCKS:
+            e= IOError()
+            e.errno= errno.EFBIG
+            raise e
+        currenly_allocated= self.needed_blocks( self.getSize() )
+        needed_allocated=   self.needed_blocks( newsize )
+        while needed_allocated > currently_allocated:
+            #allocated a block
+            newblock= SofsBlock.allocateBlock(self.sofs)
+            i= self.FILE_BLOCKS_INDEX + currently_allocated
+            self.writeInt( i, newblock.index)
+            currently_allocated+=1
+        while needed_allocated < currently_allocated:
+            #deallocate a block
+            i= self.FILE_BLOCKS_INDEX + currently_allocated -1  #last block
+            block_index= self.readInt(i)
+            block= self.sofs.getBlock( block_index )
+            block.deallocate()
+            self.writeInt( i, -1)
+            currently_allocated-=1
+        self.writeInt(17, newsize)
+        self.size= newsize
+
+    @staticmethod
+    def allocateInodeBlock(sofs, filename):
         b= SofsBlock.allocateBlock(sofs)
         b.writeInt(0, INodeBlock.MAGIC)
-        b._writeBytes( SofsFormat.INT_SIZE, filename+"\0")
-        b.writeInt(17,0)
+        b.setFilename(filename)
+        self.size=0
+        b.setSize(0)
+        for i in xrange(self.FILE_BLOCKS_INDEX, self.TOTAL_INTS):
+            #write pointers to blocks of file
+            self.writeInt(i, -1)
         sofs.zero_block.writeNewInode( b)
         return INodeBlock(sofs, b.index)
 
-    def getFilename(self):
-        return self.filename
+    def needed_blocks( self, filesize ):
+        '''returns the number of FS blocks to contain a file of filesize'''
+        return ((filesize-1) / self.BLOCK_SIZE)+1
 
     def getAllocatedBlocks(self):
-        block_number= (self.size / self.BLOCK_SIZE) +1
-        assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
+        block_number= self.needed_blocks( self.size )
         file_blocks_indexes= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
+        assert self.readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
+        assert all(lambda x: x>=0, file_blocks_indexes)
         return [SofsBlock(self.sofs, i) for i in file_blocks_indexes]
         
     def readFile(self, readlen, offset):
@@ -171,7 +211,7 @@ class INodeBlock( SofsBlock ):
             curr_block = blocks[block_to_read]
         return "".join(result)
 
-    def writeFile(self, writelen, offset):
+    def writeFile(self, buf, offset):
 
         if offset > self.size or offset + writelen > self.MAX_BLOCKS*self.BLOCK_SIZE:     
             raise IOError()
@@ -308,6 +348,15 @@ class SoFS(fuse.Fuse):
         log.debug("called create "+path)
         filename = os.path.basename(path)
         INodeBlock.allocateInodeBlock(self.format, filename)
+
+    def utime ( self, path, times ):
+        # can't do anything, since we don't have data structures for times on disk
+        pass
+
+    def unlink ( self, path ):
+        log.debug("called unlink "+path)
+        inode= self.format.find(path)
+        inode.unlink()
 
 if __name__ == '__main__':
     fs = SoFS()
