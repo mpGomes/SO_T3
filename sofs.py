@@ -288,11 +288,16 @@ class SoFS(fuse.Fuse):
             e.errno= errno.ENOENT
             raise e
     
-    def write(self, buf, offset):
+    def write(self, path, buf, offset):
         log.debug("called write {0} {1}".format(buf, offset))
+        f = self.find(path)
+        f.writeFile(buf, offset)
     
-    def read(self, size, offset):
+    def read(self, path, length, offset):
         log.debug("called read {0} {1}".format(size, offset))
+        f = self.find(path)
+        buf = f.read(length,offset)
+        return buf
     
     def open( self, path, flags ):
         log.debug("called open {0} {1}".format(path, flags))
