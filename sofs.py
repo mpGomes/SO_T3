@@ -147,7 +147,7 @@ class INodeBlock( SofsBlock ):
             e= IOError()
             e.errno= errno.EFBIG
             raise e
-        currenly_allocated= self.needed_blocks( self.getSize() )
+        currently_allocated= self.needed_blocks( self.getSize() )
         needed_allocated=   self.needed_blocks( newsize )
         while needed_allocated > currently_allocated:
             #allocated a block
@@ -170,14 +170,14 @@ class INodeBlock( SofsBlock ):
     def allocateInodeBlock(sofs, filename):
         b= SofsBlock.allocateBlock(sofs)
         b.writeInt(0, INodeBlock.MAGIC)
-        b.setFilename(filename)
-        self.size=0
-        b.setSize(0)
-        for i in xrange(self.FILE_BLOCKS_INDEX, self.TOTAL_INTS):
-            #write pointers to blocks of file
-            self.writeInt(i, -1)
         sofs.zero_block.writeNewInode( b)
-        return INodeBlock(sofs, b.index)
+        inode = INodeBlock(sofs, b.index)
+        inode.setFilename(filename)
+        inode.setSize(0)
+        for i in xrange(inode.FILE_BLOCKS_INDEX, inode.TOTAL_INTS):
+            #write pointers to blocks of file
+            inode.writeInt(i, -1)
+        return inode
 
     def needed_blocks( self, filesize ):
         '''returns the number of FS blocks to contain a file of filesize'''
