@@ -322,6 +322,10 @@ class SoFS(fuse.Fuse):
         log.debug("called create "+path)
         filename = os.path.basename(path)
         INodeBlock.allocateInodeBlock(self.format, filename)
+        
+    def rename(self, pathfrom, pathto):
+        return 0
+
 
 if __name__ == '__main__':
     fs = SoFS()
