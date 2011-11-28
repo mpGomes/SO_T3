@@ -271,13 +271,14 @@ class SoFS(fuse.Fuse):
     def getattr(self, path):
         log.debug("called getattr {0}".format(path))
         st = fuse.Stat()
-        st.st_mode = 0755 | stat.S_IFDIR
+        st.st_mode = 0755 | stat.S_IFREG
         st.st_nlink = 1
         st.st_atime = 0.0
         st.st_mtime = 0.0
         st.st_ctime = 0.0
 
         if os.path.abspath(path)=="/":
+            st.st_mode = 0755 | stat.S_IFDIR
             return st
         try:
             inode= self.format.find(path)
