@@ -105,7 +105,7 @@ class ZeroBlock( SofsBlock ):
     def writeNewInode( self, inode_block):
         all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
         i= all_inodes_indexes.index(-1)
-        self.writeInt( i, inode_block.index)
+        self.writeInt( self.START_OF_INODES_INDEXES + i, inode_block.index)
         
     def deleteInode(self, inode_block):
         all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
