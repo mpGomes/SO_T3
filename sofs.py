@@ -128,30 +128,70 @@ class INodeBlock( SofsBlock ):
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
 
-    @staticmethod
-    def allocateInodeBlock(sofs, filename):
+    def getFilename(self):
+        return self.filename
+
+    def setFilename(self, filename):
         if len(filename)>63:
             e= IOError()
             e.errno= errno.ENAMETOOLONG
             raise e
+        self._writeBytes( SofsFormat.INT_SIZE, filename+"\0")
+        self.filename= filename
+
+    def getSize(self):
+        return self.size
+
+    def setSize(self, newsize):
+        if newsize > self.BLOCK_SIZE * self.MAX_BLOCKS:
+            e= IOError()
+            e.errno= errno.EFBIG
+            raise e
+        currenly_allocated= self.needed_blocks( self.getSize() )
+        needed_allocated=   self.needed_blocks( newsize )
+        while needed_allocated > currently_allocated:
+            #allocated a block
+            newblock= SofsBlock.allocateBlock(self.sofs)
+            i= self.FILE_BLOCKS_INDEX + currently_allocated
+            self.writeInt( i, newblock.index)
+            currently_allocated+=1
+        while needed_allocated < currently_allocated:
+            #deallocate a block
+            i= self.FILE_BLOCKS_INDEX + currently_allocated -1  #last block
+            block_index= self.readInt(i)
+            block= self.sofs.getBlock( block_index )
+            block.deallocate()
+            self.writeInt( i, -1)
+            currently_allocated-=1
+        self.writeInt(17, newsize)
+        self.size= newsize
+
+    @staticmethod
+    def allocateInodeBlock(sofs, filename):
         b= SofsBlock.allocateBlock(sofs)
         b.writeInt(0, INodeBlock.MAGIC)
-        b._writeBytes( SofsFormat.INT_SIZE, filename+"\0")
-        b.writeInt(17,0)
+        b.setFilename(filename)
+        self.size=0
+        b.setSize(0)
+        for i in xrange(self.FILE_BLOCKS_INDEX, self.TOTAL_INTS):
+            #write pointers to blocks of file
+            self.writeInt(i, -1)
         sofs.zero_block.writeNewInode( b)
         return INodeBlock(sofs, b.index)
 
-    def getFilename(self):
-        return self.filename
+    def needed_blocks( self, filesize ):
+        '''returns the number of FS blocks to contain a file of filesize'''
+        return ((filesize-1) / self.BLOCK_SIZE)+1
 
     def getAllocatedBlocks(self):
-        block_number= (self.size / self.BLOCK_SIZE) +1
-        assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
+        block_number= self.needed_blocks( self.size )
         file_blocks_indexes= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
+        assert self.readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
+        assert all(lambda x: x>=0, file_blocks_indexes)
         return [SofsBlock(self.sofs, i) for i in file_blocks_indexes]
         
     def readFile(self, readlen, offset):
-        if offset + readlen >= self.size:
+        if offset + readlen > self.size:
             e= OSError("Try to read outside file")
             e.errno= errno.EINVAL
             raise e
@@ -159,45 +199,33 @@ class INodeBlock( SofsBlock ):
         block_to_read = offset/self.BLOCK_SIZE              #index of the block to be read
         block_offset = offset%self.BLOCK_SIZE
         curr_block = blocks[block_to_read]                  #current block to be read
-        
         result = []
         while(readlen > 0):
             block_bytes = self.BLOCK_SIZE - block_offset
             bytes_to_read = min( block_bytes, readlen)
-            result.append(curr_block.read_bytes(block_offset, bytes_to_read))
+            result.append(curr_block._read_bytes(block_offset, bytes_to_read))
             readlen -= bytes_to_read
             block_to_read += 1
             block_offset = 0
             curr_block = blocks[block_to_read]
         return "".join(result)
 
-    def writeFile(self, writelen, offset):
-
-        if offset > self.size or offset + writelen > self.MAX_BLOCKS*self.BLOCK_SIZE:     
-            raise IOError()
-
-        block_number= (self.size / self.BLOCK_SIZE) +1
-        assert readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
-        file_blocks= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
-        
+    def writeFile(self, buf, offset):
+        if offset + len(buf) > self.size:     
+            self.setSize(offset + len(buf))
+        blocks= self.getAllocatedBlocks()
         block_to_write = offset/self.BLOCK_SIZE                 #index of the block to be written
         block_offset = offset%self.BLOCK_SIZE
-
-        curr_block = sofs.getBlock(file_blocks[block_to_read]) #current block
-
-        while (writelen > 0):
+        curr_block = sofs.getBlock(blocks[block_to_write]) #current block
+        remaining_bytes=len(buf)
+        while (remaining_bytes > 0):
             block_bytes = self.BLOCK_SIZE - block_offset
-            bytes_to_write = min( block_bytes, writelen)
-            curr_block.write_bytes(block_offset, bytes_to_write)
-            block_to_read += 1                                      #get next block to write
-            curr_block = sofs.getBlock(file_blocks[block_to_read])
+            bytes_to_write = min( block_bytes, remaining_bytes)
+            curr_block._write_bytes(block_offset, bytes_to_write)
+            block_to_write += 1                                      #get next block to write
+            curr_block = sofs.getBlock(blocks[block_to_write])
             block_offset = 0
-            writelen -= bytes_to_write
-            
-        if offset + writelen == self.size:
-            self.size = offset + writelen       #update file size
-
-        return 0 #what to return?
+            remaining_bytes -= bytes_to_write
     
     def unlink(self):
         '''frees data blocks and inode block'''
@@ -326,6 +354,15 @@ class SoFS(fuse.Fuse):
     def rename(self, pathfrom, pathto):
         return 0
 
+
+    def utime ( self, path, times ):
+        # can't do anything, since we don't have data structures for times on disk
+        pass
+
+    def unlink ( self, path ):
+        log.debug("called unlink "+path)
+        inode= self.format.find(path)
+        inode.unlink()
 
 if __name__ == '__main__':
     fs = SoFS()
