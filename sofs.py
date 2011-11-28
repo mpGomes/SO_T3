@@ -124,7 +124,7 @@ class INodeBlock( SofsBlock ):
         magic= self.readInt(0)
         if magic!=self.MAGIC:
             raise NotAnInodeBlock()
-        self.filename=  self._readBytes( 1*INT_SIZE, 64 )
+        self.filename=  self._readBytes( 1*self.INT_SIZE, 64 )
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
 
@@ -139,7 +139,7 @@ class INodeBlock( SofsBlock ):
         b._writeBytes( SofsFormat.INT_SIZE, filename+"\0")
         b.writeInt(17,0)
         sofs.zero_block.writeNewInode( b)
-        return InodeBlock(sofs, b.index)
+        return INodeBlock(sofs, b.index)
 
     def getFilename(self):
         return self.filename
