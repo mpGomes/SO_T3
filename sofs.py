@@ -238,9 +238,8 @@ class SofsFormat:
         self.device.seek(index)
         return self.device.read(size)
 
-    def getInodeBlock(self, x):
-        log.debug("getting inode block "+str(x))
-        index= 5+x
+    def getInodeBlock(self, index):
+        log.debug("getting inode block "+str(index))
         return INodeBlock(self, index)
     
     def getFreeBlock(self):
