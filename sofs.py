@@ -294,13 +294,14 @@ class SoFS(fuse.Fuse):
         #f.writeFile(buf, offset)
     
     def read(self, path, length, offset):
-        log.debug("called read {0} {1}".format(size, offset))
+        log.debug("called read {0} {1}".format(length, offset))
         f = self.format.find(path)
-        buf = f.read(length,offset)
+        buf = f.readFile(length,offset)
         return buf
     
     def open( self, path, flags ):
         log.debug("called open {0} {1}".format(path, flags))
+        return 0
     
     def flush(self, path):
         log.debug("called close {0}".format(path))
