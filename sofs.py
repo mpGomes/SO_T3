@@ -155,11 +155,11 @@ class INodeBlock( SofsBlock ):
             e= OSError("Try to read outside file")
             e.errno= errno.EINVAL
             raise e
-        block_to_read = offset/self.BLOCK_SIZE                 #index of the block to be read
-        block_offset = offset%self.BLOCK_SIZE
-        curr_block = blocks[block_to_read] #current block to be read
-
         blocks= self.getAllocatedBlocks()
+        block_to_read = offset/self.BLOCK_SIZE              #index of the block to be read
+        block_offset = offset%self.BLOCK_SIZE
+        curr_block = blocks[block_to_read]                  #current block to be read
+        
         result = []
         while(readlen > 0):
             block_bytes = self.BLOCK_SIZE - block_offset
