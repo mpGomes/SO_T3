@@ -195,11 +195,11 @@ class INodeBlock( SofsBlock ):
             e= OSError("Try to read outside file")
             e.errno= errno.EINVAL
             raise e
-        block_to_read = offset/self.BLOCK_SIZE                 #index of the block to be read
-        block_offset = offset%self.BLOCK_SIZE
-        curr_block = blocks[block_to_read] #current block to be read
-
         blocks= self.getAllocatedBlocks()
+        block_to_read = offset/self.BLOCK_SIZE              #index of the block to be read
+        block_offset = offset%self.BLOCK_SIZE
+        curr_block = blocks[block_to_read]                  #current block to be read
+        
         result = []
         while(readlen > 0):
             block_bytes = self.BLOCK_SIZE - block_offset
@@ -328,14 +328,27 @@ class SoFS(fuse.Fuse):
             e.errno= errno.ENOENT
             raise e
     
-    def write(self, buf, offset):
+    def write(self, path, buf, offset):
         log.debug("called write {0} {1}".format(buf, offset))
+        f = self.format.find(path)
+        #f.writeFile(buf, offset)
     
-    def read(self, size, offset):
+    def read(self, path, length, offset):
         log.debug("called read {0} {1}".format(size, offset))
+        f = self.format.find(path)
+        buf = f.read(length,offset)
+        return buf
     
     def open( self, path, flags ):
         log.debug("called open {0} {1}".format(path, flags))
+    
+    def flush(self, path):
+        log.debug("called close {0}".format(path))
+        return 0
+        
+    def release(self, path, flags):
+        log.debug("called close {0} {1}".format(path, flags))
+        return 0
 
     def readdir(self, path, offset):
         log.debug("called readdir {0} {1}".format(path, offset))
