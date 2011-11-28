@@ -105,7 +105,7 @@ class ZeroBlock( SofsBlock ):
     def writeNewInode( self, inode_block):
         all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
         i= all_inodes_indexes.index(-1)
-        self.writeInt( self.START_OF_INODES_INDEXES + i, inode_block.index)
+        self.writeInt( i, inode_block.index)
         
     def deleteInode(self, inode_block):
         all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
@@ -253,8 +253,9 @@ class SofsFormat:
         '''returns the inodeBlock of a path'''
         log.debug("executing find on "+path)
         inodes= self.zero_block.getInodes()
+        filename = os.path.basename(path)
         for inode in inodes:
-            if inode.getFilename()==path:
+            if inode.getFilename()==filename:
                 log.debug("match on path of inode "+str(inode))
                 return inode
         log.error("could not find path "+path)
@@ -305,9 +306,8 @@ class SoFS(fuse.Fuse):
 
     def create(self, path, flags, mode):
         log.debug("called create "+path)
-        INodeBlock.allocateInodeBlock(self.format, path)
-        
-    
+        filename = os.path.basename(path)
+        INodeBlock.allocateInodeBlock(self.format, filename)
 
 if __name__ == '__main__':
     fs = SoFS()
