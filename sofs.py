@@ -198,16 +198,15 @@ class INodeBlock( SofsBlock ):
         blocks= self.getAllocatedBlocks()
         block_to_read = offset/self.BLOCK_SIZE              #index of the block to be read
         block_offset = offset%self.BLOCK_SIZE
-        curr_block = blocks[block_to_read]                  #current block to be read
         result = []
         while(readlen > 0):
+            curr_block = blocks[block_to_read]                  #current block to be read
             block_bytes = self.BLOCK_SIZE - block_offset
             bytes_to_read = min( block_bytes, readlen)
-            result.append(curr_block._read_bytes(block_offset, bytes_to_read))
+            result.append(curr_block._readBytes(block_offset, bytes_to_read))
             readlen -= bytes_to_read
             block_to_read += 1
             block_offset = 0
-            curr_block = blocks[block_to_read]
         return "".join(result)
 
     def writeFile(self, buf, offset):
