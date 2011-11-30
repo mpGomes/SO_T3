@@ -357,14 +357,26 @@ class SoFS(fuse.Fuse):
 
 
     def utime ( self, path, times ):
-        # can't do anything, since we don't have data structures for times on disk
-        pass
+        pass # can't do anything, since we don't have data structures for times on disk
 
     def unlink ( self, path ):
         log.debug("called unlink "+path)
         inode= self.format.find(path)
         inode.unlink()
 
+    def chmod ( self, path, mode ):
+        pass    #can't do without data structures
+
+    def chown ( self, path, uid, gid ):
+        pass    #can't do without data structures
+
+    def fsync ( self, path, isFsyncFile ):
+        pass    #no need, for now
+
+    def truncate ( self, path, size ):
+        inode = self.format.find(path)
+        inode.setSize(size)
+        
 if __name__ == '__main__':
     fs = SoFS()
     fs.parser.add_option(mountopt="device", metavar="DEVICE", help="device file")
