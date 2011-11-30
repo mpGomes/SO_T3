@@ -187,14 +187,14 @@ class INodeBlock( SofsBlock ):
         block_number= self.needed_blocks( self.size )
         file_blocks_indexes= map(self.readInt, range( self.FILE_BLOCKS_INDEX, self.FILE_BLOCKS_INDEX + block_number))
         assert self.readInt( self.FILE_BLOCKS_INDEX + block_number)   ==-1   #just
-        assert all(lambda x: x>=0, file_blocks_indexes)
+        assert all( [x>=0 for x in file_blocks_indexes] )
         return [SofsBlock(self.sofs, i) for i in file_blocks_indexes]
         
     def readFile(self, readlen, offset):
         if offset + readlen > self.size:
-            e= OSError("Try to read outside file")
-            e.errno= errno.EINVAL
-            raise e
+            readlen= self.getSize() - offset
+        if readlen==0:
+            return ""   #to avoid index error
         blocks= self.getAllocatedBlocks()
         block_to_read = offset/self.BLOCK_SIZE              #index of the block to be read
         block_offset = offset%self.BLOCK_SIZE
@@ -317,13 +317,13 @@ class SoFS(fuse.Fuse):
             raise e
     
     def write(self, path, buf, offset):
-        log.debug("called write {0} {1}".format(buf, offset))
+        log.debug("called write {0} {1} {2}".format(path, buf, offset))
         f = self.format.find(path)
         f.writeFile(buf, offset)
         return len(buf)
     
     def read(self, path, length, offset):
-        log.debug("called read {0} {1}".format(length, offset))
+        log.debug("called read {0} {1} {2}".format(path, length, offset))
         f = self.format.find(path)
         buf = f.readFile(length,offset)
         return buf
