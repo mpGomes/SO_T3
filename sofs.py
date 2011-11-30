@@ -364,10 +364,16 @@ class SoFS(fuse.Fuse):
     def create(self, path, flags, mode):
         log.debug("called create "+path)
         filename = os.path.basename(path)
-        INodeBlock.allocateInodeBlock(self.format, filename)
+        try:
+            INodeBlock.allocateInodeBlock(self.format, filename)
+        except NoFreeBlocks:
+            e=IOError("Couldn't find the given path")
+            e.errno= errno.ENOSPC
+            raise e
         
     def rename(self, pathfrom, pathto):
-        return 0
+        inode= self.format.find(os.path.basename(pathfrom))
+        inode.setFilename(os.path.basename(pathto))
 
 
     def utime ( self, path, times ):
