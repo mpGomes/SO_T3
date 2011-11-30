@@ -216,16 +216,17 @@ class INodeBlock( SofsBlock ):
         blocks= self.getAllocatedBlocks()
         block_to_write = offset/self.BLOCK_SIZE                 #index of the block to be written
         block_offset = offset%self.BLOCK_SIZE
-        curr_block = sofs.getBlock(blocks[block_to_write]) #current block
         remaining_bytes=len(buf)
+        reading_index = 0
         while (remaining_bytes > 0):
+            curr_block = blocks[block_to_write] #current block
             block_bytes = self.BLOCK_SIZE - block_offset
-            bytes_to_write = min( block_bytes, remaining_bytes)
-            curr_block._write_bytes(block_offset, bytes_to_write)
+            num_bytes_to_write = min( block_bytes, remaining_bytes)
+            curr_block._writeBytes(block_offset, buf[reading_index:reading_index+num_bytes_to_write])
+            reading_index+=num_bytes_to_write
             block_to_write += 1                                      #get next block to write
-            curr_block = sofs.getBlock(blocks[block_to_write])
             block_offset = 0
-            remaining_bytes -= bytes_to_write
+            remaining_bytes -= num_bytes_to_write
     
     def unlink(self):
         '''frees data blocks and inode block'''
@@ -250,10 +251,7 @@ class SofsFormat:
         self.device= open(filename, 'r+')   #read-write
         self.zero_block= ZeroBlock( self )
         
-    def getBlock(self, x, index_check=True):
-        if index_check:
-            if x>=self.zero_block.block_count:
-                raise BlockOutOfFS(str(x))
+    def getBlock(self, x):
         return SofsBlock(self, x)
         
     def _writeBytes(self, index, b):
