@@ -156,7 +156,11 @@ class INodeBlock( SofsBlock ):
         needed_allocated=   self.needed_blocks( newsize )
         while needed_allocated > currently_allocated:
             #allocated a block
-            newblock= SofsBlock.allocateBlock(self.sofs)
+            try:
+                newblock= SofsBlock.allocateBlock(self.sofs)
+            except NoFreeBlocks:
+                self.setSize( self.size )    #reset to original size, before setSize
+                raise NoFreeBlocks
             i= self.FILE_BLOCKS_INDEX + currently_allocated
             self.writeInt( i, newblock.index)
             currently_allocated+=1
@@ -324,7 +328,12 @@ class SoFS(fuse.Fuse):
     def write(self, path, buf, offset):
         log.debug("called write {0} {1} {2}".format(path, buf, offset))
         f = self.format.find(path)
-        f.writeFile(buf, offset)
+        try:
+            f.writeFile(buf, offset)
+        except NoFreeBlocks:
+            e=IOError("Couldn't find the given path")
+            e.errno= errno.ENOSPC
+            raise e
         return len(buf)
     
     def read(self, path, length, offset):
