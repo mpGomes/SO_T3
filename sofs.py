@@ -307,6 +307,9 @@ class SoFS(fuse.Fuse):
             return st
         try:
             inode= self.format.find(path)
+            st.st_size= inode.getSize()
+            st.st_blksize= 512
+            st.st_blocks=inode.needed_blocks( inode.getSize() )
             return st
         except CantFindInodeFromPath:
             e= OSError("Couldn't find the given path")
