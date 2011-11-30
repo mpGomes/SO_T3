@@ -60,14 +60,14 @@ class SofsBlock:
         
     @staticmethod
     def allocateBlock(sofs):
-        log.debug("allocating block")
         fb= sofs.getFreeBlock()         #get free block from head
         nfbi= fb.getNextFreeBlockIndex()#get next free block
         sofs.zero_block.setFirstFreeBlockIndex( nfbi )   #update head
+        log.debug("allocated block "+str(nfbi))
         return SofsBlock(sofs, fb.index)
     
     def deallocate(self):
-        log.debug("deallocating block")
+        log.debug("deallocating block "+str(self.index))
         fb= self.sofs.getFreeBlock()         #get current head
         self.writeInt(0, fb.index )               #update next pointer
         self.sofs.zero_block.setFirstFreeBlockIndex( self.index ) #update head
@@ -143,6 +143,7 @@ class INodeBlock( SofsBlock ):
         return self.size
 
     def setSize(self, newsize):
+        log.debug("setSize to "+str(newsize))
         if newsize > self.BLOCK_SIZE * self.MAX_BLOCKS:
             e= IOError()
             e.errno= errno.EFBIG
@@ -374,6 +375,7 @@ class SoFS(fuse.Fuse):
         pass    #no need, for now
 
     def truncate ( self, path, size ):
+        log.debug("called truncate {0} {1}".format(path, size))
         inode = self.format.find(path)
         inode.setSize(size)
         
