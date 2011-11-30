@@ -68,7 +68,7 @@ class SofsBlock:
     
     def deallocate(self):
         log.debug("deallocating block")
-        fb= self.sofs.getFirstFreeBlock()         #get current head
+        fb= self.sofs.getFreeBlock()         #get current head
         self.writeInt(0, fb.index )               #update next pointer
         self.sofs.zero_block.setFirstFreeBlockIndex( self.index ) #update head
 
