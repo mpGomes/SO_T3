@@ -38,16 +38,16 @@ class SofsBlock:
 
     def _writeBytes( self, index, b):
         assert index < self.BLOCK_SIZE
-        log.debug("block: writing bytes on index {0}: {1}".format(index, b))
+        #log.debug("block: writing bytes on index {0} of block {1}: {2}".format(index, self.index, b))
         self.sofs._writeBytes( self.index*self.BLOCK_SIZE + index, b)
     
     def _readBytes( self, index, size ):
         assert index < self.BLOCK_SIZE
-        #log.debug("block: reading {0} bytes from index {1}".format(size, index))
+        #log.debug("block: reading {0} bytes from index {1} of block {2}".format(size, index, self.index))
         return self.sofs._readBytes( self.index*self.BLOCK_SIZE + index, size)
 
     def writeInt(self, int_index, the_int):
-        log.debug("writing int {0} to offset {1}".format(the_int, int_index))
+        log.debug("writing int {0} to offset {1} of block {2}".format(the_int, int_index, self.index))
         to_write= struct.pack('<i', the_int)
         assert len(to_write)==self.INT_SIZE
         self._writeBytes( int_index*self.INT_SIZE, to_write)
@@ -263,7 +263,7 @@ class SofsFormat:
         return SofsBlock(self, x)
         
     def _writeBytes(self, index, b):
-        log.debug("write bytes to offset {0}: {1}".format(index, b))
+        #log.debug("write bytes to offset {0}: {1}".format(index, b))
         self.device.seek(index)
         self.device.write(b)
         
