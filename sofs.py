@@ -400,6 +400,7 @@ class SoFS(fuse.Fuse):
         
 if __name__ == '__main__':
     fs = SoFS()
+    fs.multithreaded = 0
     fs.parser.add_option(mountopt="device", metavar="DEVICE", help="device file")
     tmp= fs.parse(values=fs, errex=1)
     fs.format= SofsFormat( fs.device )
