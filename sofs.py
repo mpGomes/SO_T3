@@ -113,7 +113,7 @@ class ZeroBlock( SofsBlock ):
         
     def deleteInode(self, inode_block):
         all_inodes_indexes= [self.readInt(i) for i in xrange(self.START_OF_INODES_INDEXES, self.TOTAL_INTS)]
-        i= all_inodes_indexes.index( inode_block.index)
+        i= self.START_OF_INODES_INDEXES + all_inodes_indexes.index( inode_block.index)
         self.writeInt( i, -1)
         
     def getBlockCount(self):
