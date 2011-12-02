@@ -76,11 +76,12 @@ class BlockTable:
     def readAllIndexes(self):
         return self.readBlockIndexes(0, self.size)
 
+    def readAllNonEmptyIndexes(self):
+        return filter( lambda x: x!=self.EMPTY_VALUE, self.readAllIndexes() )
+
     def readAllBlocks(self):
         '''returns all blocks (ignores EMPTY_VALUE)'''
-        i= self.readAllIndexes()
-        i= filter( lambda x: x!=self.EMPTY_VALUE, i)
-        return map(self.bfif, i)
+        return map(self.bfif, self.readAllNonEmptyIndexes())
 
     def find(self, value):
         '''finds the table index from the wanted block index (value)'''
@@ -92,6 +93,7 @@ class BlockTable:
 
     def addBlock(self, block):
         '''writes the block on a free position, if any'''
+        self.assert_linear()
         try:
             empty_index= self.find( self.EMPTY_VALUE )
         except BlockTable.NotFound:
@@ -103,11 +105,23 @@ class BlockTable:
         index= self.find( block.index )
         self.writeBlockIndex( index, self.EMPTY_VALUE)
 
+    def assert_linear(self):
+        '''checks that all non-empty blocks are continuous and before EMPTY_VALUEs'''
+        indexes= self.readAllIndexes()
+        if self.EMPTY_VALUE in indexes:
+            i= indexes.index( self.EMPTY_VALUE )
+            empty_part= indexes[i:]
+            assert empty_part.count( self.EMPTY_VALUE)==len(empty_part)
+        return i
+
     def deleteBlocks(self, n):
         '''deletes the last n blocks, returning them'''
-        block_indexes= self.readAllIndexes()
-        last_blocks_indexes= block_indexes[-n:]
-        last_table_index_start= len(block_indexes)-n
+        self.assert_linear()
+        indexes= self.readAllNonEmptyIndexes()
+        if len(indexes) < n:
+            raise Exception("Trying to delete too many blocks")
+        last_blocks_indexes= indexes[-n:]
+        last_table_index_start= len(indexes)-n
         self.writeBlockIndexes( last_table_index_start, (self.EMPTY_VALUE,)*n)
         return map(self.bfif, last_blocks_indexes)
 
