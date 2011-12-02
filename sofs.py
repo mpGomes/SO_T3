@@ -26,104 +26,129 @@ class NotAnInodeBlock( Exception ):
 class NoFreeBlocks( Exception ):
     pass
 
-class BlockTable:
-    class TableFull( Exception ):
-        pass
+class IntTable:
+    '''this class maintains a table ints on a region of a block'''
     class NotFound( Exception ):
         pass
     class Full( Exception ):
         pass
-    '''this class maintains a table of block indexes on disk'''
-    EMPTY_VALUE= -1 #the default table value
-    def __init__(self, sofsblock, start_int, size, block_from_index_function, write_default=False,):
-        '''start_int: integer index where table starts, on block
+    DEFAULT_VALUE= -1 #the default table value
+    def __init__(self, sofsblock, start_index, size, initialize=False):
+        '''
+        start_index: integer index where table starts, on block
         size: number of table entries
+        initialize: write DEFAULT_VALUE on whole table
         '''
         assert isinstance( sofsblock, SofsBlock)
-        self.block, self.start_int, self.size, self.bfif= sofsblock, start_int, size, block_from_index_function
-        if write_default:
+        self.block, self.start_index, self.size= sofsblock, start_index, size
+        if initialize:
             #write the table filled with empty value
-            self.writeBlockIndexes(0, (self.EMPTY_VALUE,)*size )
+            self.writeInts(0, (self.DEFAULT_VALUE,)*size )
 
-    def writeBlock(self, table_index, block):
-        self.writeBlockIndex( table_index, block.index )
+    def writeInt( self, index, integer):
+        assert 0 <= index < self.size
+        self.block.writeInt( self.start_index + index, integer)
 
-    def writeBlockIndex( self, table_index, i):
-        assert 0 <= table_index<self.size
-        self.block.writeInt( self.start_int + table_index, i)
+    def writeInts( self, index, integers):
+        assert 0<= index
+        assert index+len(integers) <= self.size
+        self.block.writeInts( self.start_index + index, integers)
 
-    def writeBlockIndexes( self, table_index, values):
-        '''writes multiple entries at once (for efficiency)'''
-        assert 0 <= table_index
-        assert table_index+len(values) <= self.size
-        self.block.writeInts( self.start_int + table_index, values)
+    def readInt( self, index):
+        assert 0 <= index < self.size
+        return self.block.readInt( self.start_index + index )
 
-    def readBlockIndex( self, table_index):
-        assert 0<=table_index<self.size
-        return self.block.readInt( self.start_int + table_index )
+    def readInts(self, index, size):
+        assert 0<= index+size <= self.size
+        return self.block.readInts( self.start_index + index, size)
 
-    def readBlock( self, table_index):
-        return self.bfif( self.readBlockIndex(table_index) )
+    def readAllInts(self):
+        return self.readInts(0, self.size)
 
-    def readBlockIndexes(self, table_index, size):
-        assert 0<=table_index
-        assert table_index+size<= self.size
-        return self.block.readInts( self.start_int + table_index, size)
+    def readAllNonDefaultInts(self):
+        return filter( lambda x: x!=self.DEFAULT_VALUE, self.readAllInts() )
 
-    def readBlocks(self, table_index, size):
-        return map(self.bfif, self.readBlockIndexes(table_index, size))
-
-    def readAllIndexes(self):
-        return self.readBlockIndexes(0, self.size)
-
-    def readAllNonEmptyIndexes(self):
-        return filter( lambda x: x!=self.EMPTY_VALUE, self.readAllIndexes() )
-
-    def readAllBlocks(self):
-        '''returns all blocks (ignores EMPTY_VALUE)'''
-        return map(self.bfif, self.readAllNonEmptyIndexes())
-
-    def find(self, value):
-        '''finds the table index from the wanted block index (value)'''
-        i= self.readAllIndexes()
+    def index(self, value):
+        '''finds the table index of the wanted value'''
+        i= self.readAllInts()
         try:
             return i.index(value)
         except:
             raise BlockTable.NotFound(value)
 
+class BlockTable( IntTable ):
+    '''maintains a list of block pointers on disk'''
+    def __init__(self, sofsblock, start_index, size, initialize=False, index_to_block_function=lambda x:None):
+        IntTable.__init__(self, sofsblock, start_index, size, initialize=initialize)
+        self.bfif= index_to_block_function
+
+    def readBlock( self, index):
+        return self.bfif( self.readInt(index) )
+
+    def readBlocks(self, index, size):
+        return map(self.bfif, self.readInts( index, size ))
+    
+    def writeBlock( self, index, block):
+        return self.writeInt(index, block.index)
+    
+    def writeBlocks( self, index, blocks ):
+        bi= [b.index for b in blocks]
+        self.writeInt(index, bi)
+
+    def readAllBlocks(self):
+        '''returns all blocks (ignores EMPTY_VALUE)'''
+        return map(self.bfif, self.readAllNonDefaultInts())
+
     def addBlock(self, block):
         '''writes the block on a free position, if any'''
-        self.assert_linear()
         try:
-            empty_index= self.find( self.EMPTY_VALUE )
+            empty_index= self.index( self.DEFAULT_VALUE )
         except BlockTable.NotFound:
-            raise BlockTable.Full()
+            raise self.Full()
         self.writeBlock( empty_index, block)
 
     def deleteBlock(self, block):
         '''deletes a specific block'''
-        index= self.find( block.index )
-        self.writeBlockIndex( index, self.EMPTY_VALUE)
+        index= self.index( block.index )
+        self.writeInt( index, self.DEFAULT_VALUE)
 
-    def assert_linear(self):
-        '''checks that all non-empty blocks are continuous and before EMPTY_VALUEs'''
-        indexes= self.readAllIndexes()
-        if self.EMPTY_VALUE in indexes:
-            i= indexes.index( self.EMPTY_VALUE )
+
+class LinearBlockTable( IntTable ):
+    '''a BlockTable with no "empty spaces" between blocks'''
+    def __init__(self, sofsblock, start_index, size, initialize=False, index_to_block_function=lambda x:None):
+        IntTable.__init__(self, sofsblock, start_index, size, initialize=initialize)
+        self.bfif= index_to_block_function
+        
+        #check that all non-empty blocks are continuous and before DEFAULT_VALUEs
+        indexes= self.readAllInts()
+        if self.DEFAULT_VALUE in indexes:
+            i= indexes.index( self.DEFAULT_VALUE )
             empty_part= indexes[i:]
-            assert empty_part.count( self.EMPTY_VALUE)==len(empty_part)
-        return i
+            assert empty_part.count( self.DEFAULT_VALUE)==len(empty_part)
+            self.current_size=i
+        else:
+            self.current_size= self.size
+    
+    def readAllBlocks(self):
+        '''returns all blocks (ignores EMPTY_VALUE)'''
+        return map(self.bfif, self.readInts(0, self.current_size))
+
+    def addBlocks(self, blocks):
+        '''writes the block on a free position, if any'''
+        if self.size - self.current_size < len(blocks):
+            raise self.Full()
+        self.writeInts( self.current_size, [b.index for b in blocks])
+        self.current_size+= len(blocks)
 
     def deleteBlocks(self, n):
-        '''deletes the last n blocks, returning them'''
-        self.assert_linear()
-        indexes= self.readAllNonEmptyIndexes()
-        if len(indexes) < n:
+        if self.current_size < n:
             raise Exception("Trying to delete too many blocks")
-        last_blocks_indexes= indexes[-n:]
-        last_table_index_start= len(indexes)-n
-        self.writeBlockIndexes( last_table_index_start, (self.EMPTY_VALUE,)*n)
-        return map(self.bfif, last_blocks_indexes)
+        deleted_blocks= map(self.bfif, self.readInts( self.current_size-n,n))
+        self.writeInts( self.current_size, (self.DEFAULT_VALUE,)*n)
+        self.current_size-=n
+        return deleted_blocks
+
+
 
 class SofsBlock:
     def __init__( self, sofs, index, BLOCK_SIZE=512, INT_SIZE=4):
@@ -203,7 +228,7 @@ class ZeroBlock( SofsBlock ):
         self.block_count= block_count   #total FS blocks
         self.free_list_head= free_list_head  #first free block
         table_size= self.TOTAL_INTS - ZeroBlock.TABLE_START
-        self.inodes= BlockTable( self, self.TABLE_START, table_size, self.sofs.getInodeBlock)
+        self.inodes= BlockTable( self, self.TABLE_START, table_size, index_to_block_function=self.sofs.getInodeBlock)
         
     def getFirstFreeBlockIndex(self):
         i= self.free_list_head
@@ -231,7 +256,7 @@ class INodeBlock( SofsBlock ):
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
         table_size= self.TOTAL_INTS - INodeBlock.TABLE_START
-        self.data_blocks= BlockTable( self, self.TABLE_START, table_size, self.sofs.getBlock)
+        self.data_blocks= LinearBlockTable( self, self.TABLE_START, table_size, index_to_block_function=self.sofs.getBlock)
 
     def getFilename(self):
         return self.filename
@@ -262,7 +287,7 @@ class INodeBlock( SofsBlock ):
             except NoFreeBlocks:
                 self.setSize( self.size )    #reset to original size, before setSize
                 raise NoFreeBlocks
-            self.data_blocks.addBlock(newblock)
+            self.data_blocks.addBlocks( (newblock,) )
             currently_allocated+=1
         while needed_allocated < currently_allocated:
             #deallocate a block
@@ -279,9 +304,9 @@ class INodeBlock( SofsBlock ):
         sofs.zero_block.inodes.addBlock( b)
         inode = INodeBlock(sofs, b.index)
         inode.setFilename(filename)
-        inode.setSize(0)
+        inode.writeInt(17, 0)   #size
         table_size= inode.TOTAL_INTS - INodeBlock.TABLE_START
-        BlockTable( inode, INodeBlock.TABLE_START, table_size, None, write_default=True)    #write empty data_blocks table
+        BlockTable( inode, INodeBlock.TABLE_START, table_size, initialize=True)    #write empty data_blocks table
         return inode
 
     def needed_blocks( self, filesize ):
