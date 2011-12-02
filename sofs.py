@@ -76,6 +76,36 @@ class SofsBlock:
         self.writeInt(0, next_free_index )               #update next pointer
         self.sofs.zero_block.setFirstFreeBlockIndex( self.index ) #update head
 
+class IndirectBlock( SofsBlock ):
+    MAGIC = 4205772778 # signed ints for 0xfaaeffea.
+    def __init__(self, sofs, index):
+        SofsBlock.__init_(self, sofs, index)
+        magic = self.readInt(0)       
+        if magic!=self.MAGIC:
+            raise NotAnInodeBlock()
+    
+    @staticmethod
+    def allocateIndirectBlock(sofs):
+        b= SofsBlock.allocateBlock(sofs)
+        b.writeInt(0, IndirectBlock.MAGIC)
+        ind_block = IndirectBlock(sofs, b.index) 
+        for i in xrange(0, self.TOTAL_INTS):
+            #write pointers to blocks of file
+            ind_block.writeInt(i, -1)
+        return ind_block
+    
+    
+        
+    @staticmethod
+    def allocateInodeBlock(sofs, filename):
+        b= SofsBlock.allocateBlock(sofs)
+        b.writeInt(0, INodeBlock.MAGIC)
+
+        for i in xrange(inode.FILE_BLOCKS_INDEX, inode.TOTAL_INTS):
+            #write pointers to blocks of file
+            inode.writeInt(i, -1)
+        return inode
+
 class ZeroBlock( SofsBlock ):
     MAGIC_1, MAGIC_2= -1700156774, 1834985411 # signed ints for 0x9aa9aa9a, 0x6d5fa7c3
     START_OF_INODES_INDEXES= 5
