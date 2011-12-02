@@ -124,7 +124,8 @@ class LinearBlockTable( IntTable ):
         if self.DEFAULT_VALUE in indexes:
             i= indexes.index( self.DEFAULT_VALUE )
             empty_part= indexes[i:]
-            assert empty_part.count( self.DEFAULT_VALUE)==len(empty_part)
+            if empty_part.count( self.DEFAULT_VALUE)!=len(empty_part):
+                raise Exception( "Table is not linear")
             self.current_size=i
         else:
             self.current_size= self.size
@@ -147,6 +148,9 @@ class LinearBlockTable( IntTable ):
         self.writeInts( self.current_size, (self.DEFAULT_VALUE,)*n)
         self.current_size-=n
         return deleted_blocks
+
+    def getCurrentSize(self):
+        return self.current_size
 
 
 
