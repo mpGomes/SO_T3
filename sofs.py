@@ -190,8 +190,8 @@ class SofsBlock:
         self.sofs.zero_block.setFirstFreeBlockIndex( self.index ) #update head
 
 class IndirectBlock( SofsBlock ):
-    MAGIC = 4205772778 # signed ints for 0xfaaeffea.
-    TABLE_START=0
+    MAGIC = 4205772778 # signed int for 0xfaaeffea.
+    TABLE_START=1
     def __init__(self, sofs, index):
         SofsBlock.__init_(self, sofs, index)
         magic = self.readInt(0)       
