@@ -35,13 +35,13 @@ class BlockTable:
         pass
     '''this class maintains a table of block indexes on disk'''
     EMPTY_VALUE= -1 #the default table value
-    def __init__(self, sofsblock, start_int, size, block_from_index_function, write_default=False,):
+    def __init__(self, sofsblock, start_int, size, block_from_index_function, initialize=False,):
         '''start_int: integer index where table starts, on block
         size: number of table entries
         '''
         assert isinstance( sofsblock, SofsBlock)
         self.block, self.start_int, self.size, self.bfif= sofsblock, start_int, size, block_from_index_function
-        if write_default:
+        if initialize:
             #write the table filled with empty value
             self.writeBlockIndexes(0, (self.EMPTY_VALUE,)*size )
 
@@ -177,33 +177,22 @@ class SofsBlock:
 
 class IndirectBlock( SofsBlock ):
     MAGIC = 4205772778 # signed ints for 0xfaaeffea.
+    TABLE_START=0
     def __init__(self, sofs, index):
         SofsBlock.__init_(self, sofs, index)
         magic = self.readInt(0)       
         if magic!=self.MAGIC:
             raise NotAnInodeBlock()
-    
+        table_size= self.TOTAL_INTS - IndirectBlock.TABLE_START
+        self.data_blocks= BlockTable( self, self.TABLE_START, table_size, self.sofs.getBlock)
+
     @staticmethod
     def allocateIndirectBlock(sofs):
         b= SofsBlock.allocateBlock(sofs)
         b.writeInt(0, IndirectBlock.MAGIC)
         ind_block = IndirectBlock(sofs, b.index) 
-        for i in xrange(0, self.TOTAL_INTS):
-            #write pointers to blocks of file
-            ind_block.writeInt(i, -1)
+        BlockTable( self, self.TABLE_START, table_size, self.sofs.getBlock, initialize=True)
         return ind_block
-    
-    
-        
-    @staticmethod
-    def allocateInodeBlock(sofs, filename):
-        b= SofsBlock.allocateBlock(sofs)
-        b.writeInt(0, INodeBlock.MAGIC)
-
-        for i in xrange(inode.FILE_BLOCKS_INDEX, inode.TOTAL_INTS):
-            #write pointers to blocks of file
-            inode.writeInt(i, -1)
-        return inode
 
 class ZeroBlock( SofsBlock ):
     MAGIC_1, MAGIC_2= -1700156774, 1834985411 # signed ints for 0x9aa9aa9a, 0x6d5fa7c3
@@ -297,7 +286,7 @@ class INodeBlock( SofsBlock ):
         inode.setFilename(filename)
         inode.setSize(0)
         table_size= inode.TOTAL_INTS - INodeBlock.TABLE_START
-        BlockTable( inode, INodeBlock.TABLE_START, table_size, None, write_default=True)    #write empty data_blocks table
+        BlockTable( inode, INodeBlock.TABLE_START, table_size, None, initialize=True)    #write empty data_blocks table
         return inode
 
     def needed_blocks( self, filesize ):
