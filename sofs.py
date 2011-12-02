@@ -106,7 +106,7 @@ class BlockTable:
     def deleteBlocks(self, n):
         '''deletes the last n blocks, returning them'''
         block_indexes= self.readAllIndexes()
-        last_blocks_indexes= indexes[-n:]
+        last_blocks_indexes= block_indexes[-n:]
         last_table_index_start= len(block_indexes)-n
         self.writeBlockIndexes( last_table_index_start, (self.EMPTY_VALUE,)*n)
         return map(self.bfif, last_blocks_indexes)
