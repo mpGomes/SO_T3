@@ -304,7 +304,7 @@ class INodeBlock( SofsBlock ):
         sofs.zero_block.inodes.addBlock( b)
         inode = INodeBlock(sofs, b.index)
         inode.setFilename(filename)
-        inode.setSize(0)
+        inode.writeInt(17, 0)   #size
         table_size= inode.TOTAL_INTS - INodeBlock.TABLE_START
         BlockTable( inode, INodeBlock.TABLE_START, table_size, initialize=True)    #write empty data_blocks table
         return inode
