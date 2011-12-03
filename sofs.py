@@ -145,7 +145,7 @@ class LinearBlockTable( IntTable ):
         if self.current_size < n:
             raise Exception("Trying to delete too many blocks")
         deleted_blocks= map(self.bfif, self.readInts( self.current_size-n,n))
-        self.writeInts( self.current_size, (self.DEFAULT_VALUE,)*n)
+        self.writeInts( self.current_size  - n, (self.DEFAULT_VALUE,)*n)
         self.current_size-=n
         return deleted_blocks
 
