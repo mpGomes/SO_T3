@@ -1,0 +1,4 @@
+open foo.txt
+write foo.txt hello_world
+read foo.txt
+close foo.txt
