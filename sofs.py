@@ -243,15 +243,14 @@ class IndirectBlock( SofsBlock ):
         magic = self.readInt(0)       
         if magic!=self.MAGIC:
             raise NotAnIndirectBlock()
-        table_size= self.TOTAL_INTS - IndirectBlock.TABLE_START
-        self.data_blocks= AllocatedBlockTable( lambda: SofsBlock.allocateBlock(self.sofs), SofsBlock.deallocate, self, self.TABLE_START, table_size, self.sofs.getBlock)
+        self.data_blocks= AllocatedBlockTable( lambda: SofsBlock.allocateBlock(self.sofs), SofsBlock.deallocate, self, self.TABLE_START, self.TABLE_SIZE, index_to_block_function=self.sofs.getBlock)
 
     @staticmethod
     def allocateIndirectBlock(sofs):
         b= SofsBlock.allocateBlock(sofs)
         b.writeInt(0, IndirectBlock.MAGIC)
         ind_block = IndirectBlock(sofs, b.index) 
-        BlockTable( ind_block, IndirectBlock.TABLE_START, IndirectBlock.TABLE_SIZE, index_to_block_function=sofs.getBlock, initialize=True)
+        BlockTable( ind_block, IndirectBlock.TABLE_START, IndirectBlock.TABLE_SIZE, index_to_block_function=sofs.getIndirectBlock, initialize=True)
         return ind_block
 
 class ZeroBlock( SofsBlock ):
@@ -324,10 +323,11 @@ class INodeBlock( SofsBlock ):
         block_dist= self.needed_blocks( newsize )
         self.data_blocks.resize( block_dist[0] )
         indi_tables= [ib.data_blocks for ib in self.indi_blocks.readAllBlocks()]
-        needed_indi_blocks= block_dist[1:].count(0)
-        diff= len(indi_tables) - needed_indi_blocks #how many indirect blocks do we need to de/allocate
-        if diff >= 0:
+        needed_indi_blocks= self.INDI_TABLE_SIZE - block_dist[1:].count(0)
+        diff= needed_indi_blocks - len(indi_tables) #how many indirect blocks do we need to de/allocate
+        if diff > 0:
             self.indi_blocks.resize( needed_indi_blocks )
+            indi_tables= [ib.data_blocks for ib in self.indi_blocks.readAllBlocks()]
         if diff < 0:
             deallocated_indi_tables= indi_tables[diff:] #diff is negative, so this returns last -diff elements
             for dit in deallocated_indi_tables:
@@ -451,6 +451,9 @@ class SofsFormat:
         i= self.zero_block.getFirstFreeBlockIndex()
         log.debug("returning block "+str(i))
         return FreeBlock(self, i)
+
+    def getIndirectBlock(self, index):
+        return IndirectBlock(self, index)
 
     def find(self, path):
         '''returns the inodeBlock of a path'''
