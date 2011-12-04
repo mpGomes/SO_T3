@@ -151,7 +151,8 @@ class LinearBlockTable( IntTable ):
     def getCurrentSize(self):
         return self.current_size
 
-class DataBlockTable( LinearBlockTable ):
+class AllocatedBlockTable( LinearBlockTable ):
+class AllocatedBlockTable( LinearBlockTable ):
     '''maintains a list of pointers to self-allocated blocks'''
     def __init__(self, sofs, *args, **kwargs):
         LinearBlockTable.__init__(self, *args, **kwargs)
@@ -274,7 +275,7 @@ class INodeBlock( SofsBlock ):
         self.filename=  self._readBytes( 1*self.INT_SIZE, 64 )
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
-        self.data_blocks= DataBlockTable( self.sofs, self, self.DATA_TABLE_START, self.DATA_TABLE_SIZE, index_to_block_function=self.sofs.getBlock)
+        self.data_blocks= AllocatedBlockTable( self.sofs, self, self.DATA_TABLE_START, self.DATA_TABLE_SIZE, index_to_block_function=self.sofs.getBlock)
 
     def getFilename(self):
         return self.filename
