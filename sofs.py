@@ -23,6 +23,8 @@ class CantFindInodeFromPath( Exception ):
     pass
 class NotAnInodeBlock( Exception ):
     pass
+class NotAnIndirectBlock( Exception ):
+    pass
 class NoFreeBlocks( Exception ):
     pass
 
@@ -79,7 +81,7 @@ class IntTable:
 class BlockTable( IntTable ):
     '''maintains a list of block pointers on disk'''
     def __init__(self, sofsblock, start_index, size, initialize=False, index_to_block_function=lambda x:None):
-        IntTable.__init__(self, sofsblock, start_index, size, initialize=initialize)
+        IntTable.__init__(self, sofsblock, start_index, size, initialize)
         self.bfif= index_to_block_function
 
     def readBlock( self, index):
@@ -153,18 +155,18 @@ class LinearBlockTable( IntTable ):
 
 class AllocatedBlockTable( LinearBlockTable ):
     '''maintains a list of pointers to self-allocated blocks'''
-    def __init__(self, sofs, *args, **kwargs):
+    def __init__(self, allocate_f, deallocate_f, *args, **kwargs):
         LinearBlockTable.__init__(self, *args, **kwargs)
-        self.sofs= sofs
+        self.af, self.df= allocate_f, deallocate_f
 
     def resize(self, n_blocks):
         '''resizes the table to have n_blocks, allocating or deallocating as necessary'''
         diff=  n_blocks - self.current_size
         if diff < 0:
             deallocated_blocks= self.deleteBlocks( -diff )
-            map( SofsBlock.deallocate, deallocated_blocks)
+            map( self.df, deallocated_blocks)
         if diff > 0:
-            allocated_blocks= [ SofsBlock.allocateBlock(self.sofs) for x in xrange(diff) ]
+            allocated_blocks= [ self.af() for x in xrange(diff) ]
             self.addBlocks( allocated_blocks )
 
 
@@ -233,23 +235,23 @@ class SofsBlock:
         self.sofs.zero_block.setFirstFreeBlockIndex( self.index ) #update head
 
 class IndirectBlock( SofsBlock ):
-    MAGIC = 4205772778 # signed int for 0xfaaeffea.
+    MAGIC = -352342278 # signed int for 0xfaaeffea.
     TABLE_START=1
     TABLE_SIZE= 127
     def __init__(self, sofs, index):
-        SofsBlock.__init_(self, sofs, index)
+        SofsBlock.__init__(self, sofs, index)
         magic = self.readInt(0)       
         if magic!=self.MAGIC:
-            raise NotAnInodeBlock()
+            raise NotAnIndirectBlock()
         table_size= self.TOTAL_INTS - IndirectBlock.TABLE_START
-        self.data_blocks= AllocatedBlockTable( self.sofs, self, self.TABLE_START, table_size, self.sofs.getBlock)
+        self.data_blocks= AllocatedBlockTable( lambda: SofsBlock.allocateBlock(self.sofs), SofsBlock.deallocate, self, self.TABLE_START, table_size, self.sofs.getBlock)
 
     @staticmethod
     def allocateIndirectBlock(sofs):
         b= SofsBlock.allocateBlock(sofs)
         b.writeInt(0, IndirectBlock.MAGIC)
         ind_block = IndirectBlock(sofs, b.index) 
-        BlockTable( self, self.TABLE_START, table_size, self.sofs.getBlock, initialize=True)
+        BlockTable( ind_block, IndirectBlock.TABLE_START, IndirectBlock.TABLE_SIZE, index_to_block_function=sofs.getBlock, initialize=True)
         return ind_block
 
 class ZeroBlock( SofsBlock ):
@@ -296,8 +298,8 @@ class INodeBlock( SofsBlock ):
         self.filename=  self._readBytes( 1*self.INT_SIZE, 64 )
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
-        self.data_blocks= AllocatedBlockTable( self.sofs, self, self.DATA_TABLE_START, self.DATA_TABLE_SIZE, index_to_block_function=self.sofs.getBlock)
-        self.indi_blocks= AllocatedBlockTable( self.sofs, self, self.INDI_TABLE_START, self.INDI_TABLE_SIZE, index_to_block_function=lambda x: IndirectBlock(self.sofs, x))
+        self.data_blocks= AllocatedBlockTable( lambda: SofsBlock.allocateBlock(self.sofs), SofsBlock.deallocate, self, self.DATA_TABLE_START, self.DATA_TABLE_SIZE, index_to_block_function=self.sofs.getBlock)
+        self.indi_blocks= AllocatedBlockTable( lambda: IndirectBlock.allocateIndirectBlock(self.sofs), SofsBlock.deallocate, self, self.INDI_TABLE_START, self.INDI_TABLE_SIZE, index_to_block_function=lambda x: IndirectBlock(self.sofs, x))
         
     def getFilename(self):
         return self.filename
@@ -325,7 +327,7 @@ class INodeBlock( SofsBlock ):
         needed_indi_blocks= block_dist[1:].count(0)
         diff= len(indi_tables) - needed_indi_blocks #how many indirect blocks do we need to de/allocate
         if diff >= 0:
-            self.indi_blocks.resize()
+            self.indi_blocks.resize( needed_indi_blocks )
         if diff < 0:
             deallocated_indi_tables= indi_tables[diff:] #diff is negative, so this returns last -diff elements
             for dit in deallocated_indi_tables:
@@ -336,13 +338,11 @@ class INodeBlock( SofsBlock ):
         self.data_blocks.resize( block_dist[0] )
         for it, nb in zip( indi_tables, block_dist[1:]):
             it.resize(nb)
-        self.data_blocks.resize( self.needed_blocks(newsize) )
         self.writeInt(17, newsize)
         self.size= newsize
 
     @staticmethod
     def allocateInodeBlock(sofs, filename):
-        import pdb; pdb.set_trace()
         b= SofsBlock.allocateBlock(sofs)
         b.writeInt(0, INodeBlock.MAGIC)
         sofs.zero_block.inodes.addBlock( b)
@@ -371,8 +371,8 @@ class INodeBlock( SofsBlock ):
         if readlen==0:
             return ""   #to avoid index error
         blocks= self.data_blocks.readAllBlocks()
-        for ib in self.indi_blocks:
-            blocks.append( ib.data_blocks.readAllBlocks() )
+        for ib in self.indi_blocks.readAllBlocks():
+            blocks.extend( ib.data_blocks.readAllBlocks() )
         block_to_read = offset/self.BLOCK_SIZE              #index of the block to be read
         block_offset = offset%self.BLOCK_SIZE
         result = []
@@ -390,8 +390,8 @@ class INodeBlock( SofsBlock ):
         if offset + len(buf) > self.size:     
             self.setSize(offset + len(buf))
         blocks= self.data_blocks.readAllBlocks()
-        for ib in self.indi_blocks:
-            blocks.append( ib.data_blocks.readAllBlocks() )
+        for ib in self.indi_blocks.readAllBlocks():
+            blocks.extend( ib.data_blocks.readAllBlocks() )
         block_to_write = offset/self.BLOCK_SIZE                 #index of the block to be written
         block_offset = offset%self.BLOCK_SIZE
         remaining_bytes=len(buf)
@@ -488,7 +488,7 @@ class SoFS(fuse.Fuse):
             inode= self.format.find(path)
             st.st_size= inode.getSize()
             st.st_blksize= 512
-            st.st_blocks=inode.needed_blocks( inode.getSize() )
+            #st.st_blocks=inode.needed_blocks( inode.getSize() )
             return st
         except CantFindInodeFromPath:
             e= OSError("Couldn't find the given path")
