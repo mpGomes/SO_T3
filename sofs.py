@@ -112,7 +112,6 @@ class BlockTable( IntTable ):
         index= self.index( block.index )
         self.writeInt( index, self.DEFAULT_VALUE)
 
-
 class LinearBlockTable( IntTable ):
     '''a BlockTable with no "empty spaces" between blocks'''
     def __init__(self, sofsblock, start_index, size, initialize=False, index_to_block_function=lambda x:None):
@@ -152,6 +151,21 @@ class LinearBlockTable( IntTable ):
     def getCurrentSize(self):
         return self.current_size
 
+class DataBlockTable( LinearBlockTable ):
+    '''maintains a list of pointers to self-allocated blocks'''
+    def __init__(self, sofs, *args, **kwargs):
+        LinearBlockTable.__init__(self, *args, **kwargs)
+        self.sofs= sofs
+
+    def resize(self, n_blocks):
+        '''resizes the table to have n_blocks, allocating or deallocating as necessary'''
+        diff=  n_blocks - self.current_size
+        if diff < 0:
+            deallocated_blocks= self.deleteBlocks( -diff )
+            map( SofsBlock.deallocate, deallocated_blocks)
+        if diff > 0:
+            allocated_blocks= [ SofsBlock.allocateBlock(self.sofs) for x in xrange(diff) ]
+            self.addBlocks( allocated_blocks )
 
 
 class SofsBlock:
@@ -260,7 +274,7 @@ class INodeBlock( SofsBlock ):
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
         table_size= self.TOTAL_INTS - INodeBlock.TABLE_START
-        self.data_blocks= LinearBlockTable( self, self.TABLE_START, table_size, index_to_block_function=self.sofs.getBlock)
+        self.data_blocks= DataBlockTable( self.sofs, self, self.TABLE_START, table_size, index_to_block_function=self.sofs.getBlock)
 
     def getFilename(self):
         return self.filename
@@ -282,22 +296,7 @@ class INodeBlock( SofsBlock ):
             e= IOError()
             e.errno= errno.EFBIG
             raise e
-        currently_allocated= self.needed_blocks( self.getSize() )
-        needed_allocated=   self.needed_blocks( newsize )
-        while needed_allocated > currently_allocated:
-            #allocated a block
-            try:
-                newblock= SofsBlock.allocateBlock(self.sofs)
-            except NoFreeBlocks:
-                self.setSize( self.size )    #reset to original size, before setSize
-                raise NoFreeBlocks
-            self.data_blocks.addBlocks( (newblock,) )
-            currently_allocated+=1
-        while needed_allocated < currently_allocated:
-            #deallocate a block
-            block= self.data_blocks.deleteBlocks(1)[0]
-            block.deallocate()
-            currently_allocated-=1
+        self.data_blocks.resize( self.needed_blocks(newsize) )
         self.writeInt(17, newsize)
         self.size= newsize
 
