@@ -152,7 +152,6 @@ class LinearBlockTable( IntTable ):
         return self.current_size
 
 class AllocatedBlockTable( LinearBlockTable ):
-class AllocatedBlockTable( LinearBlockTable ):
     '''maintains a list of pointers to self-allocated blocks'''
     def __init__(self, sofs, *args, **kwargs):
         LinearBlockTable.__init__(self, *args, **kwargs)
