@@ -37,7 +37,7 @@ def maxInodesTest():
     assert number_of_files == 123
 
 def maxBlocksTest():
-    print "Will try to create enough files to a fill the whole disk"
+    print "Will try to create enough files to a fill the whole disk. This test assumes a 100 block disk"
     number_of_files=0
     for i in range(1,300):
         filename = ''.join(random.choice(string.ascii_uppercase) for x in range(10))
@@ -59,7 +59,6 @@ def maxFileSizeTest():
         try:
             f= open('mountpoint/max_file', 'w')
             file_str = ''.join(random.choice(string.ascii_uppercase) for x in range(512))
-            print "testing",i*512,"bytes"
             f.seek(i*512)
             f.write(file_str)
             f.close()
