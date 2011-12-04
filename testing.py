@@ -37,7 +37,7 @@ def maxInodesTest():
     assert number_of_files == 123
 
 def maxBlocksTest():
-    print "Will try to create enough files to a fill the whole disk"
+    print "Will try to create enough files to a fill the whole disk. This test assumes a 100 block disk"
     number_of_files=0
     for i in range(1,300):
         filename = ''.join(random.choice(string.ascii_uppercase) for x in range(10))
@@ -55,7 +55,7 @@ def maxBlocksTest():
 def maxFileSizeTest():
     print "Will try to create the largest file possible"
     data_blocks = 0
-    for i in range(1,300):
+    for i in range(0,300):
         try:
             f= open('mountpoint/max_file', 'w')
             file_str = ''.join(random.choice(string.ascii_uppercase) for x in range(512))
@@ -64,11 +64,10 @@ def maxFileSizeTest():
             f.close()
         except(IOError):
             #import pdb;pdb.set_trace()
-            data_blocks-=i-1
+            data_blocks=i
             break
     if data_blocks != 110:
         raise Exception("Number of data blocks alocated diferent from what's expected : "+str(data_blocks))
-    assert data_bloks == 110
 
 tests = [Test('filename_test', filenameTest),Test('max_inodes_test', maxInodesTest),
          Test('max_blocks_test', maxBlocksTest),Test('max_file_size_test', maxFileSizeTest)]    
