@@ -263,8 +263,9 @@ class ZeroBlock( SofsBlock ):
 
 class INodeBlock( SofsBlock ):
     MAGIC= -274792711 #signed int for 0xf9fe9eef
-    TABLE_START= 18
-    MAX_FILE_SIZE= 512 * (128-18)
+    DATA_TABLE_START= 18
+    DATA_TABLE_SIZE=  100
+    MAX_FILE_SIZE= 512 * DATA_TABLE_SIZE
     def __init__(self, sofs, index):
         SofsBlock.__init__(self, sofs, index)
         magic= self.readInt(0)
@@ -273,8 +274,7 @@ class INodeBlock( SofsBlock ):
         self.filename=  self._readBytes( 1*self.INT_SIZE, 64 )
         self.filename= self.filename.split("\0")[0]
         self.size= self.readInt(17)
-        table_size= self.TOTAL_INTS - INodeBlock.TABLE_START
-        self.data_blocks= DataBlockTable( self.sofs, self, self.TABLE_START, table_size, index_to_block_function=self.sofs.getBlock)
+        self.data_blocks= DataBlockTable( self.sofs, self, self.DATA_TABLE_START, self.DATA_TABLE_SIZE, index_to_block_function=self.sofs.getBlock)
 
     def getFilename(self):
         return self.filename
@@ -308,8 +308,7 @@ class INodeBlock( SofsBlock ):
         inode = INodeBlock(sofs, b.index)
         inode.setFilename(filename)
         inode.writeInt(17, 0)   #size
-        table_size= inode.TOTAL_INTS - INodeBlock.TABLE_START
-        BlockTable( inode, INodeBlock.TABLE_START, table_size, initialize=True)    #write empty data_blocks table
+        BlockTable( inode, INodeBlock.DATA_TABLE_START, INodeBlock.DATA_TABLE_SIZE, initialize=True)    #write empty data_blocks table
         return inode
 
     def needed_blocks( self, filesize ):
