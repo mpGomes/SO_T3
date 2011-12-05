@@ -52,18 +52,20 @@ def maxBlocksTest():
 def maxFileSizeTest():
     print "Will try to create the largest file possible"
     data_blocks = 0
-    for i in range(0,300):
+    f= open('mountpoint/max_file', 'w')
+    for i in range(0,3000):
         try:
-            f= open('mountpoint/max_file', 'w')
             file_str = ''.join(random.choice(string.ascii_uppercase) for x in range(512))
-            f.seek(i*512)
+            #f.seek(i*512)
             f.write(file_str)
-            f.close()
         except(IOError):
             #import pdb;pdb.set_trace()
             data_blocks=i
             break
-    if data_blocks != 110:
+    f.close()
+
+    #if data_blocks != 110:     #without indirect blocks
+    if data_blocks != 1370:     #with indirect blocks
         raise Exception("Number of data blocks alocated diferent from what's expected : "+str(data_blocks))
 
 tests = [Test('filename_test', filenameTest),Test('max_inodes_test', maxInodesTest),
