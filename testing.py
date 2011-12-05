@@ -19,25 +19,23 @@ def filenameTest():
             break
     if filename_len != 63:
         raise Exception("Diferent filename length from what's expected : "+str(filename_len))
-    assert filename_len == 63
 
 def maxInodesTest():
     print "Will try to create 200 files"
     number_of_files=0
-    for i in range(1,200):
+    for i in range(0,200):
         filename = ''.join(random.choice(string.ascii_uppercase) for x in range(10))
         try:
             f= open('mountpoint/'+filename, 'w')
             f.close()
         except(IOError):
-            number_of_files=i-1
+            number_of_files=i
             break
     if number_of_files != 123:
         raise Exception("Number of files created diferent from what's expected : "+str(number_of_files))
-    assert number_of_files == 123
 
 def maxBlocksTest():
-    print "Will try to create enough files to a fill the whole disk. This test assumes a 100 block disk"
+    print "Will try to create enough files to a fill the whole disk"
     number_of_files=0
     for i in range(1,300):
         filename = ''.join(random.choice(string.ascii_uppercase) for x in range(10))
@@ -50,7 +48,6 @@ def maxBlocksTest():
             break
     if number_of_files != 99:
         raise Exception("Number of files created diferent from what's expected : "+str(number_of_files))
-    assert number_of_files == 99
 
 def maxFileSizeTest():
     print "Will try to create the largest file possible"
