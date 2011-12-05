@@ -35,7 +35,7 @@ def maxInodesTest():
         raise Exception("Number of files created diferent from what's expected : "+str(number_of_files))
 
 def maxBlocksTest():
-    print "Will try to create enough files to a fill the whole disk. This test assumes a 100 block disk"
+    print "Will try to create enough files to a fill the whole disk"
     number_of_files=0
     for i in range(1,300):
         filename = ''.join(random.choice(string.ascii_uppercase) for x in range(10))
